@@ -46,12 +46,6 @@ Open the dashboard of your kubernetes cluster
 $ minikube dashboard
 ```
 
-Stop everything 
-```
-& cd kubernetes
-$ kubectl delete -f=auth.yaml,tasks.yaml,users.yaml
-```
-
 ## Kubernetes AWS EKS
 Create cluster on the EKS. 
 
@@ -61,6 +55,7 @@ Create NFS volume.
 
 Generate the config and replace the config in the <user>/.kube/ on Mac.
 
+Now just use kubectl as you are locally
 ```
 & cd kubernetes
 $ kubectl apply -f=auth.yaml,tasks.yaml,users.yaml
@@ -73,3 +68,25 @@ $ minikube service users-service
 
 # Test with postman
 Import the postman-collection.json. There you can find some test cases.
+
+# Cleanup 
+## AWS kubernetes
+The simplest way to do a cleanup on the AWS EKS over the aws-cli tool. Follow the instructions https://docs.aws.amazon.com/eks/latest/userguide/delete-cluster.html.
+
+## Locally kubernetes
+Delete in the same way as create
+```
+& cd kubernetes
+$ kubectl delete -f=auth.yaml,tasks.yaml,users.yaml
+```
+
+## Docker-compose
+Putting down will delete the container and -v will delete also the volumes.
+```
+$ docker-compose down -v
+```
+
+Delete imges which are not used right now
+```
+$ docker image prune
+```
