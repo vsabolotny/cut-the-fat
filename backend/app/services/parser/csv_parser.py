@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO, StringIO
 import pandas as pd
@@ -18,66 +18,139 @@ DATE_FORMATS = [
     "%b %d, %Y",
     "%d-%b-%Y",
     "%d/%b/%Y",
+    "%d.%m.%Y",   # German: 27.2.2026
+    "%d.%m.%y",   # German short year
 ]
 
-# Common column name patterns
-DATE_COLS = ["date", "transaction date", "trans date", "posted date", "value date", "posting date"]
-MERCHANT_COLS = ["merchant", "description", "payee", "transaction description", "details", "memo", "narration", "particulars", "name"]
-AMOUNT_COLS = ["amount", "debit", "credit", "transaction amount", "sum", "value"]
-DEBIT_COLS = ["debit", "debit amount", "withdrawal", "withdrawals", "dr", "charge"]
-CREDIT_COLS = ["credit", "credit amount", "deposit", "deposits", "cr", "payment"]
+# Common column name patterns (normalized to lowercase)
+DATE_COLS = [
+    "date", "transaction date", "trans date", "posted date", "value date",
+    "posting date",
+    # German
+    "buchungstag", "buchungsdatum", "wertstellung", "valutadatum",
+]
+MERCHANT_COLS = [
+    "merchant", "description", "payee", "transaction description", "details",
+    "memo", "narration", "particulars", "name",
+    # German
+    "begunstigter  auftraggeber", "begunstigter auftraggeber",
+    "auftraggeber  begunstigter", "empfanger", "glaubiger",
+    "verwendungszweck",
+]
+AMOUNT_COLS = [
+    "amount", "transaction amount", "sum",
+    # German
+    "betrag", "umsatz",
+]
+DEBIT_COLS = [
+    "debit", "debit amount", "withdrawal", "withdrawals", "dr", "charge",
+    # German
+    "soll", "belastung", "ausgabe",
+]
+CREDIT_COLS = [
+    "credit", "credit amount", "deposit", "deposits", "cr", "payment",
+    # German
+    "haben", "gutschrift", "einnahme",
+]
 
 
 def _normalize_col(name: str) -> str:
-    return re.sub(r"[^a-z0-9 ]", "", str(name).lower().strip())
+    return re.sub(r"[^a-z0-9 ]", " ", str(name).lower().strip())
 
 
 def _parse_date(val) -> date | None:
-    import pandas as pd
-    if pd.isna(val):
+    if val is None:
         return None
+    try:
+        if pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        pass
     if isinstance(val, date):
         return val
     s = str(val).strip()
     for fmt in DATE_FORMATS:
         try:
-            from datetime import datetime
             return datetime.strptime(s, fmt).date()
         except ValueError:
             continue
     try:
-        return pd.to_datetime(s).date()
+        return pd.to_datetime(s, dayfirst=True).date()
     except Exception:
         return None
 
 
 def _parse_amount(val) -> Decimal | None:
+    """Parse amount handling both Anglo (1,234.56) and European (1.234,56) formats."""
     if val is None:
         return None
     try:
-        import pandas as pd
         if pd.isna(val):
             return None
     except (TypeError, ValueError):
         pass
-    s = re.sub(r"[^\d.\-]", "", str(val).replace(",", ""))
+
+    s = str(val).strip()
+    if not s:
+        return None
+
+    # Detect European format: comma is decimal separator, dot is thousands separator.
+    # Heuristic: if there's a comma and it's followed by exactly 1 or 2 digits at the end.
+    european = bool(re.search(r",\d{1,2}$", s))
+
+    if european:
+        # Remove dots (thousands separators), replace comma with dot (decimal)
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        # Remove commas (thousands separators), keep dot as decimal
+        s = s.replace(",", "")
+
+    # Strip everything except digits, dot, and leading minus
+    s = re.sub(r"[^\d.\-]", "", s)
     if not s or s == "-":
         return None
+
     try:
         return abs(Decimal(s))
     except InvalidOperation:
         return None
 
 
+def _detect_separator(content: bytes) -> str:
+    """Sniff the column separator from the first line."""
+    try:
+        first_line = content.lstrip(b"\xef\xbb\xbf").split(b"\n")[0].decode("utf-8", errors="replace")
+    except Exception:
+        return ","
+    semicolons = first_line.count(";")
+    commas = first_line.count(",")
+    tabs = first_line.count("\t")
+    return max([(";", semicolons), (",", commas), ("\t", tabs)], key=lambda x: x[1])[0]
+
+
+def _read_df(content: bytes) -> pd.DataFrame:
+    """Try several encoding + separator combinations, always skipping bad lines."""
+    sep = _detect_separator(content)
+    read_kwargs = dict(
+        dtype=str,
+        sep=sep,
+        skip_blank_lines=True,
+        on_bad_lines="skip",
+        encoding_errors="replace",
+    )
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            df = pd.read_csv(BytesIO(content), encoding=enc, **read_kwargs)
+            if len(df.columns) >= 2:
+                return df
+        except Exception:
+            continue
+    raise ValueError("Could not parse CSV with any known encoding")
+
+
 def parse_csv(content: bytes) -> list[RawTransaction]:
     """Parse CSV bank statement bytes into RawTransaction list."""
-    try:
-        df = pd.read_csv(BytesIO(content), dtype=str, skip_blank_lines=True)
-    except Exception:
-        # Try with different encoding
-        df = pd.read_csv(StringIO(content.decode("latin-1")), dtype=str, skip_blank_lines=True)
-
-    # Drop fully empty rows
+    df = _read_df(content)
     df.dropna(how="all", inplace=True)
 
     # Normalize column names
@@ -88,21 +161,37 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
     # Find date column
     date_col = next((c for c in cols if c in DATE_COLS), None)
     if not date_col:
-        date_col = next((c for c in cols if "date" in c), None)
+        date_col = next((c for c in cols if "date" in c or "tag" in c or "datum" in c), None)
     if not date_col:
         raise ValueError(f"Cannot find date column. Columns: {cols}")
 
-    # Find merchant/description column
+    # Find merchant/description column — prefer counterparty name over purpose text
     merchant_col = next((c for c in cols if c in MERCHANT_COLS), None)
     if not merchant_col:
-        merchant_col = next((c for c in cols if any(k in c for k in ["desc", "merchant", "payee", "detail", "memo"])), None)
+        merchant_col = next(
+            (c for c in cols if any(k in c for k in ["desc", "merchant", "payee", "detail", "memo", "zweck", "empf"])),
+            None,
+        )
     if not merchant_col:
         raise ValueError(f"Cannot find description column. Columns: {cols}")
+
+    # For German statements: prefer counterparty name (Begünstigter) as merchant,
+    # use Verwendungszweck as description if both exist
+    desc_col = None
+    counterparty_col = next(
+        (c for c in cols if "beg" in c or "auftraggeber" in c or "empf" in c), None
+    )
+    purpose_col = next((c for c in cols if "zweck" in c), None)
+    if counterparty_col and purpose_col:
+        merchant_col = counterparty_col
+        desc_col = purpose_col
 
     # Detect debit/credit split columns vs single amount column
     debit_col = next((c for c in cols if c in DEBIT_COLS), None)
     credit_col = next((c for c in cols if c in CREDIT_COLS), None)
-    amount_col = next((c for c in cols if c in AMOUNT_COLS and c not in DEBIT_COLS and c not in CREDIT_COLS), None)
+    amount_col = next(
+        (c for c in cols if c in AMOUNT_COLS and c not in DEBIT_COLS and c not in CREDIT_COLS), None
+    )
 
     transactions = []
     for _, row in df.iterrows():
@@ -111,8 +200,14 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
             continue
 
         merchant = str(row.get(merchant_col, "")).strip()
-        if not merchant:
+        if not merchant or merchant.lower() in ("nan", "none", ""):
             continue
+
+        description = merchant
+        if desc_col:
+            raw_desc = str(row.get(desc_col, "")).strip()
+            if raw_desc and raw_desc.lower() not in ("nan", "none", ""):
+                description = raw_desc
 
         if debit_col and credit_col:
             debit_val = _parse_amount(row.get(debit_col))
@@ -127,16 +222,16 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
                 continue
         elif amount_col:
             raw = str(row.get(amount_col, "")).strip()
-            if not raw:
+            if not raw or raw.lower() in ("nan", "none"):
                 continue
-            # Negative = credit for some banks
-            is_negative = raw.startswith("-")
+            is_negative = raw.lstrip().startswith("-")
             amount = _parse_amount(raw)
             if amount is None:
                 continue
             txn_type = "credit" if is_negative else "debit"
         else:
             # Last resort: find any numeric-looking column
+            found = False
             for c in cols:
                 if c in (date_col, merchant_col):
                     continue
@@ -144,14 +239,15 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
                 if val and val > 0:
                     amount = val
                     txn_type = "debit"
+                    found = True
                     break
-            else:
+            if not found:
                 continue
 
         transactions.append(RawTransaction(
             date=txn_date,
             merchant=merchant,
-            description=merchant,
+            description=description,
             amount=amount,
             type=txn_type,
         ))

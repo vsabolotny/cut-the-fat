@@ -97,6 +97,8 @@ async def create_upload(
                 skipped += 1
                 continue
 
+            all_hashes.add(dedup)  # prevent duplicates within this upload
+
             if normalized in merchant_rules:
                 transactions_with_rule.append((txn, normalized, dedup, merchant_rules[normalized], "rule"))
             else:

@@ -16,3 +16,6 @@ frontend/dist/
 
 # macOS
 .DS_Store
+
+# Bank statements and personal data
+data/
