@@ -1,7 +1,7 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
-import { CATEGORY_COLORS } from '../api/transactions'
+import { useCategories } from '../hooks/useCategories'
 
 interface SpendChartProps {
   data: Array<{ category: string; total: number }>
@@ -10,6 +10,7 @@ interface SpendChartProps {
 const fmt = (v: number) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
 
 export default function SpendChart({ data }: SpendChartProps) {
+  const { categoryColors } = useCategories()
   const sorted = [...data].sort((a, b) => b.total - a.total)
 
   return (
@@ -31,7 +32,7 @@ export default function SpendChart({ data }: SpendChartProps) {
         />
         <Bar dataKey="total" radius={[4, 4, 0, 0]}>
           {sorted.map((entry) => (
-            <Cell key={entry.category} fill={CATEGORY_COLORS[entry.category] ?? '#6366f1'} />
+            <Cell key={entry.category} fill={categoryColors[entry.category] ?? '#6366f1'} />
           ))}
         </Bar>
       </BarChart>

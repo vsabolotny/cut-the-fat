@@ -12,6 +12,7 @@ from ..models.transaction import Transaction
 from ..models.merchant_rule import MerchantRule
 from ..schemas.upload import UploadResponse, UploadResultResponse
 from ..services.categorizer import normalize_merchant, categorize_merchants
+from ..services.category_discovery import discover_and_save_categories
 from ..services.parser.base import RawTransaction
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"], dependencies=[Depends(require_auth)])
@@ -104,11 +105,14 @@ async def create_upload(
             else:
                 transactions_to_categorize.append((txn, normalized, dedup))
 
-        # Batch categorize uncategorized merchants
+        # Discover new categories from this upload's merchants, then categorize
+        all_unique_merchants = list({normalize_merchant(txn.merchant) for txn in raw_transactions})
+        valid_categories = await discover_and_save_categories(all_unique_merchants, db)
+
         unique_merchants = list({t[1] for t in transactions_to_categorize})
         categories = {}
         if unique_merchants:
-            categories = await categorize_merchants(unique_merchants)
+            categories = await categorize_merchants(unique_merchants, valid_categories)
 
         # Build transaction objects
         all_txns = []
@@ -127,7 +131,7 @@ async def create_upload(
             ))
 
         for txn, norm, dedup in transactions_to_categorize:
-            category = categories.get(norm, "Other")
+            category = categories.get(norm, "Sonstiges")
             all_txns.append(Transaction(
                 upload_id=upload.id,
                 date=txn.date,

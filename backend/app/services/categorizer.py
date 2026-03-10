@@ -8,8 +8,8 @@ import anthropic
 from ..config import get_settings
 from ..models.transaction import CATEGORIES
 
-SYSTEM_PROMPT = """Du bist ein Kategorisierer für Finanztransaktionen. Weise jedem Händlernamen genau eine Kategorie aus dieser Liste zu:
-Wohnen, Lebensmittel, Essen & Trinken, Verkehr, Freizeit, Gesundheit, Einkaufen, Abonnements, Reisen, Bildung, Haushalt, Versicherungen, Einnahmen, Umbuchungen, Sonstiges
+_SYSTEM_PROMPT_TEMPLATE = """Du bist ein Kategorisierer für Finanztransaktionen. Weise jedem Händlernamen genau eine Kategorie aus dieser Liste zu:
+{categories}
 
 Regeln:
 - Restaurants, Cafés, Fastfood → Essen & Trinken
@@ -25,7 +25,7 @@ Regeln:
 - Banküberweisung, Geldautomat → Umbuchungen
 - Bei Unsicherheit → Sonstiges
 
-Antworte NUR mit einem JSON-Objekt: {"Händlername": "Kategorie", ...}"""
+Antworte NUR mit einem JSON-Objekt: {{"Händlername": "Kategorie", ...}}"""
 
 
 def normalize_merchant(merchant: str) -> str:
@@ -36,12 +36,16 @@ def normalize_merchant(merchant: str) -> str:
     return s
 
 
-async def categorize_merchants(merchants: list[str]) -> dict[str, str]:
+async def categorize_merchants(merchants: list[str], valid_categories: list[str] | None = None) -> dict[str, str]:
     """Categorize a list of unique merchant names via Claude Haiku."""
     settings = get_settings()
     if not settings.anthropic_api_key:
         return {m: "Sonstiges" for m in merchants}
 
+    if valid_categories is None:
+        valid_categories = CATEGORIES
+
+    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(categories=", ".join(valid_categories))
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     results = {}
 
@@ -55,9 +59,9 @@ async def categorize_merchants(merchants: list[str]) -> dict[str, str]:
             response = await client.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=1024,
-                system=SYSTEM_PROMPT,
+                system=system_prompt,
                 messages=[
-                    {"role": "user", "content": f"Categorize these merchants:\n{merchant_list}"}
+                    {"role": "user", "content": f"Kategorisiere diese Händler:\n{merchant_list}"}
                 ],
             )
             text = response.content[0].text.strip()
@@ -66,7 +70,7 @@ async def categorize_merchants(merchants: list[str]) -> dict[str, str]:
             if json_match:
                 raw = json.loads(json_match.group())
                 for merchant, category in raw.items():
-                    if category in CATEGORIES:
+                    if category in valid_categories:
                         results[merchant] = category
                     else:
                         results[merchant] = "Sonstiges"

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { updateCategory, CATEGORIES, CATEGORY_COLORS, type Transaction } from '../api/transactions'
+import { updateCategory, type Transaction } from '../api/transactions'
+import { useCategories } from '../hooks/useCategories'
 import { format } from 'date-fns'
 
 interface TransactionRowProps {
@@ -16,6 +17,7 @@ const sourceBadge: Record<string, string> = {
 export default function TransactionRow({ transaction: txn }: TransactionRowProps) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
+  const { categories, categoryColors } = useCategories()
 
   const mutation = useMutation({
     mutationFn: (category: string) => updateCategory(txn.id, category),
@@ -26,7 +28,7 @@ export default function TransactionRow({ transaction: txn }: TransactionRowProps
     },
   })
 
-  const color = CATEGORY_COLORS[txn.category] ?? '#9ca3af'
+  const color = categoryColors[txn.category] ?? '#9ca3af'
   const amount = parseFloat(txn.amount)
   const formattedDate = (() => {
     try { return format(new Date(txn.date + 'T00:00:00'), 'MMM d, yyyy') }
@@ -57,7 +59,7 @@ export default function TransactionRow({ transaction: txn }: TransactionRowProps
             autoFocus
             disabled={mutation.isPending}
           >
-            {CATEGORIES.map(cat => (
+            {categories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>

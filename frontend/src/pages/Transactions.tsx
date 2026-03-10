@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getTransactions, CATEGORIES } from '../api/transactions'
+import { getTransactions } from '../api/transactions'
+import { useCategories } from '../hooks/useCategories'
 import TransactionRow from '../components/TransactionRow'
 
 export default function Transactions() {
@@ -9,6 +10,7 @@ export default function Transactions() {
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
   const limit = 50
+  const { categories } = useCategories()
 
   const { data, isLoading } = useQuery({
     queryKey: ['transactions', { month, category, search, offset }],
@@ -41,7 +43,7 @@ export default function Transactions() {
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500"
         >
           <option value="">Alle Kategorien</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <input
           type="search"

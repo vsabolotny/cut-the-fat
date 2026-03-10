@@ -4,12 +4,13 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { getHistory } from '../api/dashboard'
-import { CATEGORY_COLORS } from '../api/transactions'
+import { useCategories } from '../hooks/useCategories'
 
 const fmt = (v: number) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 0 })} €`
 
 export default function History() {
   const [months, setMonths] = useState(6)
+  const { categoryColors } = useCategories()
 
   const { data, isLoading } = useQuery({
     queryKey: ['history', months],
@@ -79,7 +80,7 @@ export default function History() {
                   key={cat}
                   type="monotone"
                   dataKey={cat}
-                  stroke={CATEGORY_COLORS[cat] ?? '#6366f1'}
+                  stroke={categoryColors[cat] ?? '#6366f1'}
                   strokeWidth={2}
                   dot={false}
                 />
