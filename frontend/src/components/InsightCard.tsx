@@ -31,7 +31,7 @@ export default function InsightCard({ insight }: InsightCardProps) {
       <button
         onClick={() => setDismissed(true)}
         className="text-gray-600 hover:text-gray-400 flex-shrink-0 text-xs"
-        title="Dismiss"
+        title="Ausblenden"
       >
         ✕
       </button>

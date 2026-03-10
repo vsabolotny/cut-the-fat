@@ -1,7 +1,7 @@
 import json
 import hashlib
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal
 
 import anthropic
@@ -127,13 +127,13 @@ async def get_insights(db: AsyncSession, force: bool = False) -> dict:
                     "type": "info",
                 }
             ],
-            "generated_at": datetime.utcnow(),
+            "generated_at": datetime.now(timezone.utc),
             "cached": False,
         }
 
     if not settings.anthropic_api_key:
         insights = _generate_rule_based_insights(data)
-        return {"insights": insights, "generated_at": datetime.utcnow(), "cached": False}
+        return {"insights": insights, "generated_at": datetime.now(timezone.utc), "cached": False}
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -162,17 +162,17 @@ async def get_insights(db: AsyncSession, force: bool = False) -> dict:
     existing = await db.get(InsightsCache, data_hash)
     if existing:
         existing.content = json.dumps(insights)
-        existing.generated_at = datetime.utcnow()
+        existing.generated_at = datetime.now(timezone.utc)
     else:
         cache_entry = InsightsCache(
             data_hash=data_hash,
             content=json.dumps(insights),
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )
         db.add(cache_entry)
     await db.commit()
 
-    return {"insights": insights, "generated_at": datetime.utcnow(), "cached": False}
+    return {"insights": insights, "generated_at": datetime.now(timezone.utc), "cached": False}
 
 
 def _generate_rule_based_insights(data: dict) -> list[dict]:

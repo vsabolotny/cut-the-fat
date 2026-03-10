@@ -18,6 +18,7 @@ from ..services.parser.base import RawTransaction
 router = APIRouter(prefix="/api/uploads", tags=["uploads"], dependencies=[Depends(require_auth)])
 
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".pdf"}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
 def _file_hash(content: bytes) -> str:
@@ -56,6 +57,8 @@ async def create_upload(
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
 
     content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
     file_hash = _file_hash(content)
 
     # Check for duplicate upload

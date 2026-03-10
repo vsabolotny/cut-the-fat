@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -17,7 +18,7 @@ async def get_summary(
 ) -> MonthlySummary:
     if not month:
         from datetime import datetime
-        month = datetime.utcnow().strftime("%Y-%m")
+        month = datetime.now(timezone.utc).strftime("%Y-%m")
 
     result = await db.execute(
         text("""
@@ -44,7 +45,7 @@ async def get_comparison(
     from datetime import datetime
 
     if not month:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         month = now.strftime("%Y-%m")
 
     # Parse month to get previous month

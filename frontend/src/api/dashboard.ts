@@ -2,21 +2,21 @@ import { api } from './client'
 
 export interface CategoryTotal {
   category: string
-  total: string
+  total: number
 }
 
 export interface MonthlySummary {
   month: string
-  total: string
+  total: number
   categories: CategoryTotal[]
 }
 
 export interface ComparisonResponse {
   current_month: string
   previous_month: string
-  current_total: string
-  previous_total: string
-  delta: string
+  current_total: number
+  previous_total: number
+  delta: number
   delta_pct: number | null
   category_deltas: Array<{
     category: string

@@ -7,8 +7,8 @@ import SpendChart from '../components/SpendChart'
 import UploadZone from '../components/UploadZone'
 import InsightCard from '../components/InsightCard'
 
-const fmt = (v: string | number) =>
-  `${parseFloat(String(v)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+const fmt = (v: number) =>
+  `${v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
 export default function Dashboard() {
   const currentMonth = format(new Date(), 'yyyy-MM')
@@ -35,10 +35,10 @@ export default function Dashboard() {
 
   const chartData = summary?.categories.map(c => ({
     category: c.category,
-    total: parseFloat(c.total),
+    total: c.total,
   })) ?? []
 
-  const delta = comparison ? parseFloat(comparison.delta) : null
+  const delta = comparison?.delta ?? null
   const deltaPct = comparison?.delta_pct
 
   return (

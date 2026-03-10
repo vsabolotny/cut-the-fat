@@ -29,7 +29,7 @@ class Transaction(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     upload_id: Mapped[int] = mapped_column(ForeignKey("uploads.id"), nullable=False)
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     merchant: Mapped[str] = mapped_column(String, nullable=False)
     merchant_normalized: Mapped[str] = mapped_column(String, nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)

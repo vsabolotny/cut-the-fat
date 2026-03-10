@@ -14,7 +14,6 @@ async def _seed_categories() -> None:
     from sqlalchemy import select, func
     from .models.category import Category
     from .models.transaction import CATEGORIES
-    from .services.category_discovery import _EXTRA_COLORS  # reuse palette order
 
     DEFAULT_COLORS = [
         "#6366f1", "#22c55e", "#f97316", "#3b82f6", "#a855f7",

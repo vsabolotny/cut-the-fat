@@ -7,7 +7,8 @@ import csv
 
 from ..auth import require_auth
 from ..database import get_db
-from ..models.transaction import Transaction, CATEGORIES
+from ..models.transaction import Transaction
+from ..models.category import Category
 from ..models.merchant_rule import MerchantRule
 from ..schemas.transaction import TransactionResponse, CategoryUpdateRequest, TransactionListResponse
 
@@ -64,12 +65,15 @@ async def update_category(
     request: CategoryUpdateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TransactionResponse:
-    if request.category not in CATEGORIES:
-        raise HTTPException(status_code=400, detail=f"Invalid category: {request.category}")
-
+    # Fetch transaction first so 404 takes priority over 400
     txn = await db.get(Transaction, transaction_id)
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Validate against DB categories (includes dynamically discovered ones)
+    valid_names = {c.name for c in (await db.execute(select(Category))).scalars()}
+    if request.category not in valid_names:
+        raise HTTPException(status_code=400, detail=f"Invalid category: {request.category}")
 
     txn.category = request.category
     txn.category_source = "manual"

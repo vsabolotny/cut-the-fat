@@ -1,6 +1,5 @@
 import re
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
 import pdfplumber
@@ -10,9 +9,10 @@ from .csv_parser import DATE_FORMATS, _parse_amount
 
 # Patterns for date detection
 DATE_PATTERN = re.compile(
-    r"\b(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}\s+\w{3}\s+\d{4}|\w{3}\s+\d{1,2},?\s+\d{4})\b"
+    r"\b(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}\s+\w{3}\s+\d{4}|\w{3}\s+\d{1,2},?\s+\d{4}|\d{1,2}\.\d{1,2}\.\d{2,4})\b"
 )
-AMOUNT_PATTERN = re.compile(r"\$?[\d,]+\.\d{2}")
+# Matches both USD (1,234.56 or $1,234.56) and EUR (1.234,56 or 1234,56) formats
+AMOUNT_PATTERN = re.compile(r"[\$€]?[\d\.]+,\d{2}|[\$€]?[\d,]+\.\d{2}")
 
 
 def _try_parse_date(s: str) -> date | None:
@@ -44,9 +44,10 @@ def _extract_from_tables(pdf) -> list[RawTransaction]:
                     continue
                 row_dict = {headers[i]: str(row[i] or "").strip() for i in range(min(len(headers), len(row)))}
 
-                # Find date
+                # Find date (English + German column names)
                 txn_date = None
-                for key in ["date", "transaction date", "trans date", "posted date"]:
+                for key in ["date", "transaction date", "trans date", "posted date",
+                            "buchungstag", "buchungsdatum", "wertstellung", "valutadatum"]:
                     if key in row_dict and row_dict[key]:
                         txn_date = _try_parse_date(row_dict[key])
                         if txn_date:
@@ -60,9 +61,10 @@ def _extract_from_tables(pdf) -> list[RawTransaction]:
                 if not txn_date:
                     continue
 
-                # Find description
+                # Find description (English + German column names)
                 desc = ""
-                for key in ["description", "merchant", "payee", "details", "memo", "narration"]:
+                for key in ["description", "merchant", "payee", "details", "memo", "narration",
+                            "verwendungszweck", "begunstigter", "auftraggeber", "empfanger", "glaubiger"]:
                     if key in row_dict and row_dict[key]:
                         desc = row_dict[key]
                         break
@@ -78,10 +80,10 @@ def _extract_from_tables(pdf) -> list[RawTransaction]:
                 if not desc:
                     continue
 
-                # Find amount
+                # Find amount (English + German column names)
                 amount = None
                 txn_type = "debit"
-                for key in ["debit", "withdrawal", "dr", "charge"]:
+                for key in ["debit", "withdrawal", "dr", "charge", "soll", "belastung", "ausgabe"]:
                     if key in row_dict:
                         val = _parse_amount(row_dict[key])
                         if val and val > 0:
@@ -89,7 +91,7 @@ def _extract_from_tables(pdf) -> list[RawTransaction]:
                             txn_type = "debit"
                             break
                 if not amount:
-                    for key in ["credit", "deposit", "cr"]:
+                    for key in ["credit", "deposit", "cr", "haben", "gutschrift", "einnahme"]:
                         if key in row_dict:
                             val = _parse_amount(row_dict[key])
                             if val and val > 0:
@@ -97,10 +99,10 @@ def _extract_from_tables(pdf) -> list[RawTransaction]:
                                 txn_type = "credit"
                                 break
                 if not amount:
-                    for key in ["amount", "sum", "value"]:
+                    for key in ["amount", "sum", "value", "betrag", "umsatz"]:
                         if key in row_dict and row_dict[key]:
                             raw = row_dict[key]
-                            is_neg = raw.startswith("-")
+                            is_neg = raw.lstrip().startswith("-")
                             val = _parse_amount(raw)
                             if val and val > 0:
                                 amount = val
@@ -164,13 +166,10 @@ def _extract_from_text(pdf) -> list[RawTransaction]:
         if not desc:
             desc = "Transaction"
 
-        amount_str = amounts[-1].replace(",", "").replace("$", "")
-        try:
-            amount = abs(Decimal(amount_str))
-        except InvalidOperation:
-            continue
-
-        if amount <= 0:
+        raw_amount = amounts[-1]
+        is_neg = raw_amount.lstrip().startswith("-")
+        amount = _parse_amount(raw_amount)
+        if not amount or amount <= 0:
             continue
 
         transactions.append(RawTransaction(
@@ -178,7 +177,7 @@ def _extract_from_text(pdf) -> list[RawTransaction]:
             merchant=desc,
             description=desc,
             amount=amount,
-            type="debit",
+            type="credit" if is_neg else "debit",
         ))
 
     return transactions
