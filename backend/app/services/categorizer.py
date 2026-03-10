@@ -42,15 +42,15 @@ async def categorize_merchants(merchants: list[str], valid_categories: list[str]
     if not settings.anthropic_api_key:
         return {m: "Sonstiges" for m in merchants}
 
-    if valid_categories is None:
+    if not valid_categories:  # None or empty list
         valid_categories = CATEGORIES
 
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(categories=", ".join(valid_categories))
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     results = {}
 
-    # Process in batches of 100
-    batch_size = 100
+    # Process in batches of 50 (100 entries × ~15 tokens each easily exceeds 1024 tokens)
+    batch_size = 50
     for i in range(0, len(merchants), batch_size):
         batch = merchants[i:i + batch_size]
         merchant_list = "\n".join(f"- {m}" for m in batch)
@@ -58,7 +58,7 @@ async def categorize_merchants(merchants: list[str], valid_categories: list[str]
         try:
             response = await client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=1024,
+                max_tokens=4096,
                 system=system_prompt,
                 messages=[
                     {"role": "user", "content": f"Kategorisiere diese Händler:\n{merchant_list}"}

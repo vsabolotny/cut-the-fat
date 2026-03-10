@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..models.category import Category
+from ..models.transaction import CATEGORIES as _DEFAULT_CATEGORIES
 
 # Colors to cycle through for newly discovered categories (distinct from defaults)
 _EXTRA_COLORS = [
@@ -45,7 +46,11 @@ async def discover_and_save_categories(
     existing: list[Category] = list(result.scalars())
     existing_names = [c.name for c in existing]
 
-    if not merchant_names or not existing_names:
+    # If the categories table is empty for any reason, fall back to hardcoded defaults
+    if not existing_names:
+        existing_names = list(_DEFAULT_CATEGORIES)
+
+    if not merchant_names:
         return existing_names
 
     settings = get_settings()
