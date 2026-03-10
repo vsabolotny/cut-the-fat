@@ -20,7 +20,7 @@ export default function Login() {
       setToken(res.data.token)
       navigate('/dashboard')
     } catch {
-      setError('Incorrect password')
+      setError('Falsches Passwort')
     } finally {
       setLoading(false)
     }
@@ -32,17 +32,17 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">✂</div>
           <h1 className="text-2xl font-bold text-white">Cut the Fat</h1>
-          <p className="text-gray-400 text-sm mt-1">Your personal finance advisor</p>
+          <p className="text-gray-400 text-sm mt-1">Dein persönlicher Finanzberater</p>
         </div>
         <form onSubmit={handleSubmit} className="bg-gray-900 rounded-2xl p-6 border border-gray-800 space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5">Password</label>
+            <label className="block text-sm text-gray-400 mb-1.5">Passwort</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
-              placeholder="Enter your password"
+              placeholder="Passwort eingeben"
               autoFocus
               required
             />
@@ -53,7 +53,7 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Wird angemeldet...' : 'Anmelden'}
           </button>
         </form>
       </div>

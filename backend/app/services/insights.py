@@ -12,15 +12,15 @@ from ..config import get_settings
 from ..models.insights_cache import InsightsCache
 from ..models.transaction import Transaction
 
-INSIGHTS_SYSTEM = """You are a personal finance advisor analyzing someone's spending data.
-Generate 5 specific, actionable cost-cutting insights based on the spending data provided.
+INSIGHTS_SYSTEM = """Du bist ein persönlicher Finanzberater, der die Ausgabendaten einer Person analysiert.
+Erstelle 5 spezifische, umsetzbare Sparempfehlungen auf Basis der bereitgestellten Ausgabendaten.
 
-Format each insight as a JSON object with:
-- "id": unique string (insight_1, insight_2, etc.)
-- "text": the insight in plain language (1-2 sentences, specific amounts/percentages)
-- "type": "warning" (high spend), "info" (observation), or "success" (positive trend)
+Formatiere jeden Hinweis als JSON-Objekt mit:
+- "id": eindeutige Zeichenkette (insight_1, insight_2, usw.)
+- "text": der Hinweis in einfacher Sprache auf Deutsch (1-2 Sätze, mit konkreten Beträgen/Prozentsätzen)
+- "type": "warning" (hohe Ausgaben), "info" (Beobachtung) oder "success" (positiver Trend)
 
-Return ONLY a JSON array of 5 insight objects. Be specific with dollar amounts and percentages."""
+Verwende € als Währungszeichen. Antworte NUR mit einem JSON-Array aus 5 Hinweis-Objekten."""
 
 
 def _decimal_default(obj):
@@ -123,7 +123,7 @@ async def get_insights(db: AsyncSession, force: bool = False) -> dict:
             "insights": [
                 {
                     "id": "insight_1",
-                    "text": "Upload your first bank statement to get personalized cost-cutting insights.",
+                    "text": "Lade deinen ersten Kontoauszug hoch, um personalisierte Sparempfehlungen zu erhalten.",
                     "type": "info",
                 }
             ],
@@ -190,7 +190,7 @@ def _generate_rule_based_insights(data: dict) -> list[dict]:
             top_cat = max(totals, key=lambda k: totals[k])
             insights.append({
                 "id": "insight_1",
-                "text": f"Your highest spending category is {top_cat} (${totals[top_cat]:.2f} over the tracked period). Look for opportunities to reduce costs here.",
+                "text": f"Deine höchste Ausgabenkategorie ist {top_cat} ({totals[top_cat]:.2f} € im erfassten Zeitraum). Prüfe, wo du hier sparen kannst.",
                 "type": "warning",
             })
 
@@ -199,33 +199,33 @@ def _generate_rule_based_insights(data: dict) -> list[dict]:
         total_recurring = sum(r["avg_amount"] for r in recurring)
         insights.append({
             "id": "insight_2",
-            "text": f"You have {len(recurring)} recurring charges totaling ~${total_recurring:.2f}/month. Review these to cancel unused services.",
+            "text": f"Du hast {len(recurring)} wiederkehrende Abbuchungen mit insgesamt ~{total_recurring:.2f} €/Monat. Prüfe, welche davon du kündigen kannst.",
             "type": "warning",
         })
 
     top_merchants = data.get("top_merchants", [])
-    subscription_merchants = [m for m in top_merchants if m["category"] == "Subscriptions"]
+    subscription_merchants = [m for m in top_merchants if m["category"] == "Abonnements"]
     if subscription_merchants:
         sub_total = sum(m["total"] for m in subscription_merchants)
         insights.append({
             "id": "insight_3",
-            "text": f"You're spending ${sub_total:.2f} on subscriptions. Consider auditing each service to see which ones you actively use.",
+            "text": f"Du gibst {sub_total:.2f} € für Abonnements aus. Prüfe jeden Dienst, ob du ihn noch aktiv nutzt.",
             "type": "info",
         })
 
-    dining_merchants = [m for m in top_merchants if m["category"] == "Dining"]
+    dining_merchants = [m for m in top_merchants if m["category"] == "Essen & Trinken"]
     if dining_merchants:
         dining_total = sum(m["total"] for m in dining_merchants)
         insights.append({
             "id": "insight_4",
-            "text": f"Dining out accounts for ${dining_total:.2f} in recent months. Cooking at home more often could significantly reduce this.",
+            "text": f"Essen gehen macht {dining_total:.2f} € in den letzten Monaten aus. Öfter selbst kochen könnte hier deutlich sparen.",
             "type": "info",
         })
 
     if len(insights) < 5:
         insights.append({
             "id": "insight_5",
-            "text": "Upload more months of statements to get deeper trend analysis and more personalized insights.",
+            "text": "Lade weitere Kontoauszüge hoch, um tiefere Trendanalysen und persönlichere Empfehlungen zu erhalten.",
             "type": "info",
         })
 

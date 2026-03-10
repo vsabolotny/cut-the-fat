@@ -21,9 +21,9 @@ export default function Transactions() {
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Transactions</h1>
+        <h1 className="text-2xl font-bold text-white">Transaktionen</h1>
         {data && (
-          <span className="text-sm text-gray-400">{data.total.toLocaleString()} total</span>
+          <span className="text-sm text-gray-400">{data.total.toLocaleString()} gesamt</span>
         )}
       </div>
 
@@ -40,12 +40,12 @@ export default function Transactions() {
           onChange={e => { setCategory(e.target.value); setOffset(0) }}
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500"
         >
-          <option value="">All Categories</option>
+          <option value="">Alle Kategorien</option>
           {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <input
           type="search"
-          placeholder="Search merchant..."
+          placeholder="Händler suchen..."
           value={search}
           onChange={e => { setSearch(e.target.value); setOffset(0) }}
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500 flex-1 min-w-40"
@@ -57,18 +57,18 @@ export default function Transactions() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Date</th>
-              <th className="px-4 py-3 text-left">Merchant</th>
-              <th className="px-4 py-3 text-right">Amount</th>
-              <th className="px-4 py-3 text-left">Category</th>
-              <th className="px-4 py-3 text-left">Source</th>
+              <th className="px-4 py-3 text-left">Datum</th>
+              <th className="px-4 py-3 text-left">Händler</th>
+              <th className="px-4 py-3 text-right">Betrag</th>
+              <th className="px-4 py-3 text-left">Kategorie</th>
+              <th className="px-4 py-3 text-left">Quelle</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-600">Loading...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-600">Wird geladen...</td></tr>
             ) : !data?.items.length ? (
-              <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-600">No transactions found</td></tr>
+              <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-600">Keine Transaktionen gefunden</td></tr>
             ) : (
               data.items.map(txn => <TransactionRow key={txn.id} transaction={txn} />)
             )}
@@ -84,17 +84,17 @@ export default function Transactions() {
             disabled={offset === 0}
             className="px-4 py-2 bg-gray-800 rounded-lg text-sm text-gray-400 hover:text-white disabled:opacity-40 transition-colors"
           >
-            ← Previous
+            ← Zurück
           </button>
           <span className="text-sm text-gray-500">
-            Page {currentPage + 1} of {totalPages}
+            Seite {currentPage + 1} von {totalPages}
           </span>
           <button
             onClick={() => setOffset(offset + limit)}
             disabled={offset + limit >= (data?.total ?? 0)}
             className="px-4 py-2 bg-gray-800 rounded-lg text-sm text-gray-400 hover:text-white disabled:opacity-40 transition-colors"
           >
-            Next →
+            Weiter →
           </button>
         </div>
       )}

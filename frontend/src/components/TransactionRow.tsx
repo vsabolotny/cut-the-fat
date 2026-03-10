@@ -44,7 +44,7 @@ export default function TransactionRow({ transaction: txn }: TransactionRowProps
       </td>
       <td className="px-4 py-3 text-sm font-medium text-right whitespace-nowrap">
         <span className={txn.type === 'credit' ? 'text-green-400' : 'text-gray-200'}>
-          {txn.type === 'credit' ? '+' : '-'}${amount.toFixed(2)}
+          {txn.type === 'credit' ? '+' : '-'}{amount.toFixed(2)} €
         </span>
       </td>
       <td className="px-4 py-3">
@@ -65,7 +65,7 @@ export default function TransactionRow({ transaction: txn }: TransactionRowProps
           <button
             onClick={() => setEditing(true)}
             className="flex items-center gap-1.5 group"
-            title="Click to change category"
+            title="Kategorie ändern"
           >
             <span
               className="inline-block w-2 h-2 rounded-full flex-shrink-0"
@@ -78,7 +78,7 @@ export default function TransactionRow({ transaction: txn }: TransactionRowProps
       </td>
       <td className="px-4 py-3">
         <span className={`text-xs px-2 py-0.5 rounded-full ${sourceBadge[txn.category_source] ?? sourceBadge.ai}`}>
-          {txn.category_source}
+          {txn.category_source === 'ai' ? 'KI' : txn.category_source === 'rule' ? 'Regel' : 'Manuell'}
         </span>
       </td>
     </tr>

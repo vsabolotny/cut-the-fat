@@ -8,7 +8,7 @@ import UploadZone from '../components/UploadZone'
 import InsightCard from '../components/InsightCard'
 
 const fmt = (v: string | number) =>
-  `$${parseFloat(String(v)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `${parseFloat(String(v)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
 export default function Dashboard() {
   const currentMonth = format(new Date(), 'yyyy-MM')
@@ -45,7 +45,7 @@ export default function Dashboard() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-white">Übersicht</h1>
           <p className="text-gray-400 text-sm mt-0.5">{format(new Date(), 'MMMM yyyy')}</p>
         </div>
       </div>
@@ -56,34 +56,34 @@ export default function Dashboard() {
           {/* Stats row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <div className="text-gray-400 text-sm mb-1">Total Spent</div>
+              <div className="text-gray-400 text-sm mb-1">Gesamt ausgegeben</div>
               <div className="text-2xl font-bold text-white">
                 {summaryLoading ? '...' : fmt(summary?.total ?? 0)}
               </div>
               {delta !== null && (
                 <div className={`text-sm mt-1 ${delta > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))} vs last month
+                  {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))} vs. letzten Monat
                   {deltaPct != null && ` (${Math.abs(deltaPct).toFixed(1)}%)`}
                 </div>
               )}
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <div className="text-gray-400 text-sm mb-1">Categories</div>
+              <div className="text-gray-400 text-sm mb-1">Kategorien</div>
               <div className="text-2xl font-bold text-white">
                 {summary?.categories.length ?? 0}
               </div>
-              <div className="text-sm text-gray-500 mt-1">tracked this month</div>
+              <div className="text-sm text-gray-500 mt-1">diesen Monat</div>
             </div>
           </div>
 
           {/* Spend chart */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h2 className="text-base font-semibold text-white mb-4">Spending by Category</h2>
+            <h2 className="text-base font-semibold text-white mb-4">Ausgaben nach Kategorie</h2>
             {chartData.length > 0 ? (
               <SpendChart data={chartData} />
             ) : (
               <div className="h-48 flex items-center justify-center text-gray-600 text-sm">
-                Upload a bank statement to see your spending breakdown
+                Lade einen Kontoauszug hoch, um deine Ausgaben zu sehen
               </div>
             )}
           </div>
@@ -94,7 +94,7 @@ export default function Dashboard() {
           {/* Recent transactions */}
           {recentTxns && recentTxns.items.length > 0 && (
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <h2 className="text-base font-semibold text-white mb-4">Recent Transactions</h2>
+              <h2 className="text-base font-semibold text-white mb-4">Letzte Transaktionen</h2>
               <div className="space-y-2">
                 {recentTxns.items.map(txn => (
                   <div key={txn.id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
@@ -103,7 +103,7 @@ export default function Dashboard() {
                       <div className="text-xs text-gray-500">{txn.date} · {txn.category}</div>
                     </div>
                     <div className={`text-sm font-medium ${txn.type === 'credit' ? 'text-green-400' : 'text-gray-200'}`}>
-                      {txn.type === 'credit' ? '+' : '-'}${parseFloat(txn.amount).toFixed(2)}
+                      {txn.type === 'credit' ? '+' : '-'}{parseFloat(txn.amount).toFixed(2)} €
                     </div>
                   </div>
                 ))}
@@ -117,7 +117,7 @@ export default function Dashboard() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-white">✂ Cut the Fat</h2>
-              <span className="text-xs text-gray-500">Insights</span>
+              <span className="text-xs text-gray-500">Empfehlungen</span>
             </div>
             {insights?.insights.length ? (
               <div className="space-y-3">
@@ -127,7 +127,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-gray-600 text-sm text-center py-6">
-                Upload statements to get personalized insights
+                Kontoauszüge hochladen für personalisierte Empfehlungen
               </div>
             )}
           </div>

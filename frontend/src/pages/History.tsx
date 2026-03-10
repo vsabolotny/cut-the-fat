@@ -6,7 +6,7 @@ import {
 import { getHistory } from '../api/dashboard'
 import { CATEGORY_COLORS } from '../api/transactions'
 
-const fmt = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 0 })}`
+const fmt = (v: number) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 0 })} €`
 
 export default function History() {
   const [months, setMonths] = useState(6)
@@ -33,15 +33,15 @@ export default function History() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">History</h1>
+        <h1 className="text-2xl font-bold text-white">Verlauf</h1>
         <select
           value={months}
           onChange={e => setMonths(Number(e.target.value))}
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500"
         >
-          <option value={3}>Last 3 months</option>
-          <option value={6}>Last 6 months</option>
-          <option value={12}>Last 12 months</option>
+          <option value={3}>Letzte 3 Monate</option>
+          <option value={6}>Letzte 6 Monate</option>
+          <option value={12}>Letzte 12 Monate</option>
         </select>
       </div>
 
@@ -59,9 +59,9 @@ export default function History() {
 
       {/* Trend chart */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h2 className="text-base font-semibold text-white mb-4">Spending Trends by Category</h2>
+        <h2 className="text-base font-semibold text-white mb-4">Ausgabentrends nach Kategorie</h2>
         {isLoading ? (
-          <div className="h-64 flex items-center justify-center text-gray-600">Loading...</div>
+          <div className="h-64 flex items-center justify-center text-gray-600">Wird geladen...</div>
         ) : chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
@@ -88,7 +88,7 @@ export default function History() {
           </ResponsiveContainer>
         ) : (
           <div className="h-64 flex items-center justify-center text-gray-600 text-sm">
-            Upload statements to see your spending history
+            Kontoauszüge hochladen, um deinen Ausgabenverlauf zu sehen
           </div>
         )}
       </div>

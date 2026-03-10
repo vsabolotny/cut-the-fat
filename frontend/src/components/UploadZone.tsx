@@ -18,7 +18,7 @@ export default function UploadZone() {
     try {
       const res = await uploadFile(file, setProgress)
       setStatus('done')
-      setMessage(`Imported ${res.data.imported} transactions (${res.data.skipped} skipped)`)
+      setMessage(`${res.data.imported} Transaktionen importiert (${res.data.skipped} übersprungen)`)
       queryClient.invalidateQueries()
     } catch (err: any) {
       setStatus('error')
@@ -57,7 +57,7 @@ export default function UploadZone() {
       <input {...getInputProps()} />
       {status === 'uploading' ? (
         <div className="space-y-3">
-          <div className="text-gray-300 text-sm">Uploading and categorizing...</div>
+          <div className="text-gray-300 text-sm">Wird hochgeladen und kategorisiert...</div>
           <div className="w-full bg-gray-700 rounded-full h-2">
             <div
               className="bg-indigo-500 h-2 rounded-full transition-all"
@@ -70,9 +70,9 @@ export default function UploadZone() {
         <div className="space-y-2">
           <div className="text-4xl">📂</div>
           <div className="text-gray-200 font-medium">
-            {isDragActive ? 'Drop your statement here' : 'Drop bank statement here'}
+            {isDragActive ? 'Kontoauszug ablegen' : 'Kontoauszug hier ablegen'}
           </div>
-          <div className="text-sm text-gray-500">CSV, Excel (.xlsx/.xls), or PDF</div>
+          <div className="text-sm text-gray-500">CSV, Excel (.xlsx/.xls) oder PDF</div>
           {status === 'done' && (
             <div className="text-green-400 text-sm font-medium mt-2">✓ {message}</div>
           )}
@@ -80,7 +80,7 @@ export default function UploadZone() {
             <div className="text-red-400 text-sm mt-2">⚠ {message}</div>
           )}
           {status === 'idle' && (
-            <div className="text-xs text-gray-600 mt-1">or click to browse</div>
+            <div className="text-xs text-gray-600 mt-1">oder hier klicken</div>
           )}
         </div>
       )}

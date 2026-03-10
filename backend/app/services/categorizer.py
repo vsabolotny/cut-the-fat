@@ -8,24 +8,24 @@ import anthropic
 from ..config import get_settings
 from ..models.transaction import CATEGORIES
 
-SYSTEM_PROMPT = """You are a financial transaction categorizer. Given merchant names, assign each to exactly one category from this list:
-Housing, Groceries, Dining, Transportation, Entertainment, Health, Shopping, Subscriptions, Travel, Education, Utilities, Insurance, Income, Transfers, Other
+SYSTEM_PROMPT = """Du bist ein Kategorisierer für Finanztransaktionen. Weise jedem Händlernamen genau eine Kategorie aus dieser Liste zu:
+Wohnen, Lebensmittel, Essen & Trinken, Verkehr, Freizeit, Gesundheit, Einkaufen, Abonnements, Reisen, Bildung, Haushalt, Versicherungen, Einnahmen, Umbuchungen, Sonstiges
 
-Rules:
-- Restaurants, cafes, fast food → Dining
-- Supermarkets, grocery stores → Groceries
-- Netflix, Spotify, software subscriptions → Subscriptions
-- Uber, Lyft, gas stations, parking → Transportation
-- Amazon, clothing, electronics → Shopping
-- Doctor, pharmacy, gym → Health
-- Rent, mortgage → Housing
-- Electricity, internet, phone bills → Utilities
-- Airlines, hotels → Travel
-- Income, salary, refunds → Income
-- Bank transfers, ATM → Transfers
-- If uncertain → Other
+Regeln:
+- Restaurants, Cafés, Fastfood → Essen & Trinken
+- Supermärkte, Lebensmittelgeschäfte (Edeka, Rewe, Aldi, Lidl usw.) → Lebensmittel
+- Netflix, Spotify, Software-Abonnements → Abonnements
+- Uber, Taxi, Tankstellen, Parken, ÖPNV → Verkehr
+- Amazon, Kleidung, Elektronik → Einkaufen
+- Arzt, Apotheke, Fitnessstudio → Gesundheit
+- Miete, Hypothek → Wohnen
+- Strom, Internet, Telefon → Haushalt
+- Fluggesellschaften, Hotels → Reisen
+- Gehalt, Einnahmen, Erstattungen → Einnahmen
+- Banküberweisung, Geldautomat → Umbuchungen
+- Bei Unsicherheit → Sonstiges
 
-Respond ONLY with a JSON object: {"merchant_name": "Category", ...}"""
+Antworte NUR mit einem JSON-Objekt: {"Händlername": "Kategorie", ...}"""
 
 
 def normalize_merchant(merchant: str) -> str:
@@ -40,7 +40,7 @@ async def categorize_merchants(merchants: list[str]) -> dict[str, str]:
     """Categorize a list of unique merchant names via Claude Haiku."""
     settings = get_settings()
     if not settings.anthropic_api_key:
-        return {m: "Other" for m in merchants}
+        return {m: "Sonstiges" for m in merchants}
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     results = {}
@@ -69,16 +69,16 @@ async def categorize_merchants(merchants: list[str]) -> dict[str, str]:
                     if category in CATEGORIES:
                         results[merchant] = category
                     else:
-                        results[merchant] = "Other"
+                        results[merchant] = "Sonstiges"
         except Exception as e:
-            # Fallback to Other on any error
+            # Fallback to Sonstiges on any error
             for m in batch:
                 if m not in results:
-                    results[m] = "Other"
+                    results[m] = "Sonstiges"
 
     # Ensure all merchants have a result
     for m in merchants:
         if m not in results:
-            results[m] = "Other"
+            results[m] = "Sonstiges"
 
     return results

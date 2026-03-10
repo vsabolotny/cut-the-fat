@@ -34,25 +34,25 @@ export const updateCategory = (id: number, category: string) =>
   api.patch<Transaction>(`/api/transactions/${id}/category`, { category })
 
 export const CATEGORIES = [
-  'Housing', 'Groceries', 'Dining', 'Transportation', 'Entertainment',
-  'Health', 'Shopping', 'Subscriptions', 'Travel', 'Education',
-  'Utilities', 'Insurance', 'Income', 'Transfers', 'Other',
+  'Wohnen', 'Lebensmittel', 'Essen & Trinken', 'Verkehr', 'Freizeit',
+  'Gesundheit', 'Einkaufen', 'Abonnements', 'Reisen', 'Bildung',
+  'Haushalt', 'Versicherungen', 'Einnahmen', 'Umbuchungen', 'Sonstiges',
 ]
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  Housing: '#6366f1',
-  Groceries: '#22c55e',
-  Dining: '#f97316',
-  Transportation: '#3b82f6',
-  Entertainment: '#a855f7',
-  Health: '#ec4899',
-  Shopping: '#eab308',
-  Subscriptions: '#14b8a6',
-  Travel: '#06b6d4',
-  Education: '#8b5cf6',
-  Utilities: '#64748b',
-  Insurance: '#78716c',
-  Income: '#10b981',
-  Transfers: '#94a3b8',
-  Other: '#9ca3af',
+  'Wohnen': '#6366f1',
+  'Lebensmittel': '#22c55e',
+  'Essen & Trinken': '#f97316',
+  'Verkehr': '#3b82f6',
+  'Freizeit': '#a855f7',
+  'Gesundheit': '#ec4899',
+  'Einkaufen': '#eab308',
+  'Abonnements': '#14b8a6',
+  'Reisen': '#06b6d4',
+  'Bildung': '#8b5cf6',
+  'Haushalt': '#64748b',
+  'Versicherungen': '#78716c',
+  'Einnahmen': '#10b981',
+  'Umbuchungen': '#94a3b8',
+  'Sonstiges': '#9ca3af',
 }

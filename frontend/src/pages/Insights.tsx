@@ -32,23 +32,23 @@ export default function Insights() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Insights</h1>
-          <p className="text-gray-400 text-sm mt-0.5">AI-powered cost-cutting recommendations</p>
+          <h1 className="text-2xl font-bold text-white">Empfehlungen</h1>
+          <p className="text-gray-400 text-sm mt-0.5">KI-gestützte Sparempfehlungen</p>
         </div>
         <button
           onClick={handleForceRefresh}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
         >
-          Refresh Insights
+          Neu laden
         </button>
       </div>
 
       {/* Insights list */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-base font-semibold text-white">✂ Cut the Fat Recommendations</h2>
+          <h2 className="text-base font-semibold text-white">✂ Cut the Fat Empfehlungen</h2>
           {insights?.cached && (
-            <span className="text-xs text-gray-500">Cached</span>
+            <span className="text-xs text-gray-500">Gecacht</span>
           )}
           {insights?.generated_at && (
             <span className="text-xs text-gray-600">
@@ -60,14 +60,14 @@ export default function Insights() {
           )}
         </div>
         {isLoading ? (
-          <div className="text-gray-600 text-sm py-8 text-center">Generating insights...</div>
+          <div className="text-gray-600 text-sm py-8 text-center">Empfehlungen werden erstellt...</div>
         ) : insights?.insights.length ? (
           insights.insights.map(insight => (
             <InsightCard key={insight.id} insight={insight} />
           ))
         ) : (
           <div className="text-gray-600 text-sm py-8 text-center">
-            No insights yet. Upload bank statements to get started.
+            Noch keine Empfehlungen. Lade Kontoauszüge hoch, um loszulegen.
           </div>
         )}
       </div>
@@ -75,7 +75,7 @@ export default function Insights() {
       {/* Upload history */}
       {uploads && uploads.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-base font-semibold text-white mb-4">Upload History</h2>
+          <h2 className="text-base font-semibold text-white mb-4">Upload-Verlauf</h2>
           <div className="space-y-2">
             {uploads.map(upload => (
               <div key={upload.id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
@@ -85,7 +85,7 @@ export default function Insights() {
                     {(() => {
                       try { return format(new Date(upload.uploaded_at), 'MMM d, yyyy h:mm a') }
                       catch { return upload.uploaded_at }
-                    })()} · {upload.row_count} transactions
+                    })()} · {upload.row_count} Transaktionen
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -94,11 +94,11 @@ export default function Insights() {
                     upload.status === 'error' ? 'bg-red-900/40 text-red-300' :
                     'bg-yellow-900/40 text-yellow-300'
                   }`}>
-                    {upload.status}
+                    {upload.status === 'done' ? 'Fertig' : upload.status === 'error' ? 'Fehler' : 'Ausstehend'}
                   </span>
                   <button
                     onClick={() => {
-                      if (confirm('Delete this upload and all its transactions?')) {
+                      if (confirm('Diesen Upload und alle zugehörigen Transaktionen löschen?')) {
                         deleteMutation.mutate(upload.id)
                       }
                     }}

@@ -7,7 +7,7 @@ interface SpendChartProps {
   data: Array<{ category: string; total: number }>
 }
 
-const fmt = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+const fmt = (v: number) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
 
 export default function SpendChart({ data }: SpendChartProps) {
   const sorted = [...data].sort((a, b) => b.total - a.total)
@@ -25,7 +25,7 @@ export default function SpendChart({ data }: SpendChartProps) {
         />
         <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={fmt} />
         <Tooltip
-          formatter={(v: any) => [fmt(Number(v ?? 0)), 'Spent']}
+          formatter={(v: any) => [fmt(Number(v ?? 0)), 'Ausgaben']}
           contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
           labelStyle={{ color: '#f9fafb' }}
         />

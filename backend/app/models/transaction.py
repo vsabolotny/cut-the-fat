@@ -6,21 +6,21 @@ from ..database import Base
 
 
 CATEGORIES = [
-    "Housing",
-    "Groceries",
-    "Dining",
-    "Transportation",
-    "Entertainment",
-    "Health",
-    "Shopping",
-    "Subscriptions",
-    "Travel",
-    "Education",
-    "Utilities",
-    "Insurance",
-    "Income",
-    "Transfers",
-    "Other",
+    "Wohnen",
+    "Lebensmittel",
+    "Essen & Trinken",
+    "Verkehr",
+    "Freizeit",
+    "Gesundheit",
+    "Einkaufen",
+    "Abonnements",
+    "Reisen",
+    "Bildung",
+    "Haushalt",
+    "Versicherungen",
+    "Einnahmen",
+    "Umbuchungen",
+    "Sonstiges",
 ]
 
 
@@ -35,7 +35,7 @@ class Transaction(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     type: Mapped[str] = mapped_column(String, default="debit")  # debit / credit
-    category: Mapped[str] = mapped_column(String, default="Other")
+    category: Mapped[str] = mapped_column(String, default="Sonstiges")
     category_source: Mapped[str] = mapped_column(String, default="ai")  # ai / rule / manual
     dedup_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
 

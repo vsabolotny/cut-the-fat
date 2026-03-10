@@ -2,10 +2,10 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/transactions', label: 'Transactions' },
-  { to: '/history', label: 'History' },
-  { to: '/insights', label: 'Insights' },
+  { to: '/dashboard', label: 'Übersicht' },
+  { to: '/transactions', label: 'Transaktionen' },
+  { to: '/history', label: 'Verlauf' },
+  { to: '/insights', label: 'Empfehlungen' },
 ]
 
 export default function Layout() {
@@ -43,7 +43,7 @@ export default function Layout() {
             onClick={handleLogout}
             className="ml-4 px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           >
-            Logout
+            Abmelden
           </button>
         </nav>
       </header>
