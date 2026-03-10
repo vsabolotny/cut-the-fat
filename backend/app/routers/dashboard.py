@@ -11,6 +11,19 @@ from ..schemas.dashboard import MonthlySummary, CategoryTotal, ComparisonRespons
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"], dependencies=[Depends(require_auth)])
 
 
+@router.get("/latest-month")
+async def get_latest_month(db: AsyncSession = Depends(get_db)) -> dict:
+    """Return the most recent month that has debit transactions, or current month if DB is empty."""
+    from datetime import datetime
+    result = await db.execute(
+        text("SELECT strftime('%Y-%m', date) as month FROM transactions WHERE type = 'debit' ORDER BY date DESC LIMIT 1")
+    )
+    row = result.first()
+    if row:
+        return {"month": row[0]}
+    return {"month": datetime.now(timezone.utc).strftime("%Y-%m")}
+
+
 @router.get("/summary", response_model=MonthlySummary)
 async def get_summary(
     month: str | None = Query(None, description="YYYY-MM, defaults to current month"),

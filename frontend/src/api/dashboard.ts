@@ -32,6 +32,9 @@ export interface HistoryResponse {
   data: Record<string, number[]>
 }
 
+export const getLatestMonth = () =>
+  api.get<{ month: string }>('/api/dashboard/latest-month')
+
 export const getSummary = (month?: string) =>
   api.get<MonthlySummary>('/api/dashboard/summary', { params: month ? { month } : {} })
 

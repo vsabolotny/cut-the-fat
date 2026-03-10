@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
-import { getSummary, getComparison } from '../api/dashboard'
+import { format, parseISO } from 'date-fns'
+import { de } from 'date-fns/locale'
+import { getSummary, getComparison, getLatestMonth } from '../api/dashboard'
 import { getInsights } from '../api/insights'
 import { getTransactions } from '../api/transactions'
 import SpendChart from '../components/SpendChart'
@@ -11,16 +12,24 @@ const fmt = (v: number) =>
   `${v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
 export default function Dashboard() {
-  const currentMonth = format(new Date(), 'yyyy-MM')
+  const { data: latestMonthData } = useQuery({
+    queryKey: ['dashboard', 'latest-month'],
+    queryFn: () => getLatestMonth().then(r => r.data),
+  })
+
+  // Use the most recent month with data; fall back to current month while loading
+  const currentMonth = latestMonthData?.month ?? format(new Date(), 'yyyy-MM')
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['dashboard', 'summary', currentMonth],
     queryFn: () => getSummary(currentMonth).then(r => r.data),
+    enabled: !!latestMonthData,
   })
 
   const { data: comparison } = useQuery({
     queryKey: ['dashboard', 'comparison', currentMonth],
     queryFn: () => getComparison(currentMonth).then(r => r.data),
+    enabled: !!latestMonthData,
   })
 
   const { data: insights } = useQuery({
@@ -46,7 +55,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Übersicht</h1>
-          <p className="text-gray-400 text-sm mt-0.5">{format(new Date(), 'MMMM yyyy')}</p>
+          <p className="text-gray-400 text-sm mt-0.5">
+            {currentMonth ? format(parseISO(`${currentMonth}-01`), 'MMMM yyyy', { locale: de }) : ''}
+          </p>
         </div>
       </div>
 
