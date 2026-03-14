@@ -258,7 +258,7 @@ async def _get_history(months: int) -> dict:
                 SELECT strftime('%Y-%m', date) as month, category, SUM(amount) as total
                 FROM transactions
                 WHERE type='debit'
-                  AND date >= date('now', :offset)
+                  AND strftime('%Y-%m', date) >= strftime('%Y-%m', date('now', :offset))
                 GROUP BY month, category
                 ORDER BY month ASC
             """),
@@ -272,7 +272,7 @@ async def _get_history(months: int) -> dict:
                 SELECT strftime('%Y-%m', date) as month, category, SUM(amount) as total
                 FROM transactions
                 WHERE type='credit'
-                  AND date >= date('now', :offset)
+                  AND strftime('%Y-%m', date) >= strftime('%Y-%m', date('now', :offset))
                 GROUP BY month, category
                 ORDER BY month ASC
             """),
