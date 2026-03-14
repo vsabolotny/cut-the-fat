@@ -1,82 +1,118 @@
-# Cut the Fat — Claude Code Instructions
+# Cut the Fat — Claude Code Anleitung
 
-## Project overview
+## Projektübersicht
 
-Personal finance web app. Single user, local deployment. Uploads bank statements → AI categorizes transactions → surfaces cost-cutting insights.
+Persönliche Finanzanalyse. Einzelnutzer, lokale Ausführung. Kontoauszüge importieren → KI kategorisiert Transaktionen → Monatsberichte als Markdown → Sparempfehlungen.
 
-- **Backend**: `backend/` — Python + FastAPI + SQLAlchemy async + SQLite
-- **Frontend**: `frontend/` — React + Vite + TypeScript + Tailwind CSS v4
-- **Python venv**: `backend/.venv/` (already created)
-- **Entry point**: `./start.sh`
+- **CLI**: `./ctf` — Python + Click + Rich
+- **Backend-Services**: `backend/app/services/` — Parser, Kategorisierer, Insights
+- **Datenbank**: SQLite (`backend/cut_the_fat.db`)
+- **Python venv**: `backend/.venv/` (bereits erstellt)
+- **Berichte**: `analytics/JJJJ-MM.md` (generiert mit `./ctf report`)
 
-## Running the app
+## App starten
 
 ```bash
-cp .env.example .env   # set ANTHROPIC_API_KEY and APP_PASSWORD
-./start.sh
+cp .env.example .env   # ANTHROPIC_API_KEY setzen
+./ctf --help
 ```
 
-Frontend: http://localhost:5173 | API docs: http://localhost:8000/docs
+## Befehle
 
-## Commands to use
+```bash
+./ctf upload <datei>             # CSV/Excel/PDF importieren
+./ctf dashboard                  # Ausgabenübersicht (letzter Monat mit Daten)
+./ctf dashboard --monat 2025-12  # Bestimmter Monat
+./ctf insights                   # KI-Sparempfehlungen
+./ctf insights --neu             # Neu generieren (Cache ignorieren)
+./ctf learn                      # Unkategorisierte Händler kategorisieren (Q&A)
+./ctf learn --limit 50           # Bis zu 50 Händler pro Sitzung
+./ctf report                     # Monatsbericht als MD generieren
+./ctf report --alle              # Alle Monate generieren
+```
 
-| Task | Command |
+## Entwicklungsbefehle
+
+| Aufgabe | Befehl |
 |---|---|
-| Start backend | `cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000` |
-| Start frontend | `cd frontend && npm run dev` |
-| Run migrations | `cd backend && .venv/bin/alembic upgrade head` |
-| Make migration | `cd backend && .venv/bin/alembic revision --autogenerate -m "desc"` |
-| Backend import check | `cd backend && .venv/bin/python -c "from app.main import app; print('OK')"` |
-| Frontend build check | `cd frontend && npm run build` |
-| Frontend type check | `cd frontend && npx tsc --noEmit` |
-| Install backend deps | `cd backend && .venv/bin/pip install -r requirements.txt` |
-| Install frontend deps | `cd frontend && npm install` |
+| CLI testen | `./ctf --help` |
+| Import prüfen | `cd backend && .venv/bin/python -c "import sys; sys.path.insert(0,'backend'); import cli.db; print('OK')"` |
+| Migrationen ausführen | `cd backend && .venv/bin/alembic upgrade head` |
+| Migration erstellen | `cd backend && .venv/bin/alembic revision --autogenerate -m "beschreibung"` |
+| Abhängigkeiten installieren | `cd backend && .venv/bin/pip install -r requirements.txt` |
 
-## Architecture decisions
+## Architektur
 
-- **No expiry on auth tokens** — HMAC-SHA256 of password, deterministic. To revoke: change `SECRET_KEY` or `APP_PASSWORD` in `.env`.
-- **SQLite auto-created** — `Base.metadata.create_all` in FastAPI lifespan handles first run. Alembic handles subsequent migrations.
-- **Merchant dedup** — `merchant_normalized = lowercase + strip special chars`. Used as key for `merchant_rules` table. Applied before any Claude API call.
-- **Transaction dedup** — `dedup_hash = SHA-256(date|merchant.lower()|amount)`. Prevents re-importing the same transaction from a different upload.
-- **Insights cache** — keyed on `SHA-256(aggregated_spend_json)`. Invalidates automatically when data changes. No TTL needed.
-- **Vite proxy** — `/api/*` proxied to `localhost:8000` in dev. No CORS configuration needed on frontend.
-- **Tailwind CSS v4** — uses `@tailwindcss/vite` plugin. Config is in `vite.config.ts`, not `tailwind.config.js`.
+```
+cut-the-fat/
+├── ctf                          # Shell-Einstiegspunkt (chmod +x)
+├── cli/
+│   ├── __init__.py              # sys.path setup für backend/
+│   ├── main.py                  # Click-Gruppe: upload/dashboard/insights/learn/report
+│   ├── db.py                    # asyncio.run()-Wrapper über async DB + Services
+│   ├── commands/                # upload.py, dashboard.py, insights.py, learn.py, report.py
+│   └── render/
+│       ├── terminal.py          # Rich-Tabellen und Ausgabe
+│       └── md_writer.py         # Schreibt analytics/JJJJ-MM.md
+├── analytics/                   # Generierte Monatsberichte (Markdown)
+├── data/statements/             # Originale Kontoauszüge (Kopien)
+├── doc/                         # Projektdokumentation und Pläne
+├── backend/
+│   ├── cut_the_fat.db           # SQLite-Datenbank
+│   ├── requirements.txt
+│   ├── alembic/                 # DB-Migrationen
+│   └── app/
+│       ├── config.py            # Pydantic Settings (liest .env, absoluter DB-Pfad)
+│       ├── database.py          # Async SQLAlchemy Engine
+│       ├── models/              # Transaction, Upload, MerchantRule, InsightsCache, Category
+│       └── services/            # categorizer.py, insights.py, category_discovery.py, parser/
+└── .claude/commands/            # Skills: /upload /dashboard /insights /learn /report
+```
 
-## Key files
+## Architekturentscheidungen
 
-| File | Purpose |
+- **Kein HTTP-Layer** — CLI ruft Services direkt auf, kein FastAPI/REST
+- **Async + asyncio.run()** — Services bleiben async; CLI wrappet mit `asyncio.run()`
+- **Absoluter DB-Pfad** — `config.py` leitet DB-Pfad von `__file__` ab → immer `backend/cut_the_fat.db`, unabhängig vom Arbeitsverzeichnis
+- **Merchant-Dedup** — `merchant_normalized = lowercase + Sonderzeichen entfernen`, Key für `merchant_rules`-Tabelle
+- **Transaction-Dedup** — `dedup_hash = SHA-256(datum|merchant.lower()|betrag)`, verhindert Doppelimporte
+- **Insights-Cache** — Key auf `SHA-256(aggregierter Ausgaben-JSON)`, invalidiert automatisch bei neuen Daten
+
+## Schlüsseldateien
+
+| Datei | Zweck |
 |---|---|
-| `backend/app/routers/uploads.py` | Upload pipeline orchestrator (parse → deduplicate → categorize → persist) |
-| `backend/app/services/categorizer.py` | Claude Haiku batch categorization + merchant rule application |
-| `backend/app/services/insights.py` | Claude Sonnet insights generation + SHA-256 cache |
-| `backend/app/services/parser/pdf_parser.py` | PDF parsing (table extraction first, regex text fallback) |
-| `backend/app/models/transaction.py` | `CATEGORIES` list — single source of truth for valid categories |
-| `frontend/src/api/transactions.ts` | `CATEGORIES` and `CATEGORY_COLORS` used across all components |
-| `frontend/src/pages/Dashboard.tsx` | Hero page — validates full vertical slice works |
+| `cli/db.py` | Alle DB-Operationen als sync-wrappte async-Funktionen |
+| `cli/commands/learn.py` | Interaktiver Q&A-Agent für Kategorienlernen |
+| `cli/render/md_writer.py` | Markdown-Berichtsgenerator |
+| `backend/app/services/categorizer.py` | Claude Haiku Batch-Kategorisierung + Regelanwendung |
+| `backend/app/services/insights.py` | Claude Sonnet Insights + SHA-256-Cache |
+| `backend/app/services/parser/` | CSV/Excel/PDF-Parser |
+| `backend/app/models/transaction.py` | `CATEGORIES` — einzige Quelle der Wahrheit |
 
-## Categories (canonical)
+## Kategorien (kanonisch, Deutsch)
 
-`Housing, Groceries, Dining, Transportation, Entertainment, Health, Shopping, Subscriptions, Travel, Education, Utilities, Insurance, Income, Transfers, Other`
+`Wohnen, Lebensmittel, Essen & Trinken, Verkehr, Freizeit, Gesundheit, Einkaufen, Abonnements, Reisen, Bildung, Haushalt, Versicherungen, Einnahmen, Umbuchungen, Sonstiges`
 
-If adding a new category: update `CATEGORIES` in `backend/app/models/transaction.py` AND `CATEGORIES`/`CATEGORY_COLORS` in `frontend/src/api/transactions.ts`.
+Neue Kategorie hinzufügen: `CATEGORIES` in `backend/app/models/transaction.py` aktualisieren. Beim nächsten CLI-Start wird sie automatisch in die `categories`-Tabelle gesetzt.
 
-## Adding a new bank parser
+## Neuen Bank-Parser hinzufügen
 
-1. Create `backend/app/services/parser/<bank>_parser.py` implementing `parse_<bank>(content: bytes) -> list[RawTransaction]`
-2. Add the file extension or MIME type detection in `backend/app/routers/uploads.py` → `_parse_file()`
-3. Test with a real sample file before integrating
+1. `backend/app/services/parser/<bank>_parser.py` mit `parse_<bank>(content: bytes) -> list[RawTransaction]`
+2. Format-Erkennung in `cli/db.py` → `_ingest_file()` ergänzen
+3. Mit echter Beispieldatei testen
 
-## Common gotchas
+## Häufige Fehler
 
-- **PDF parsing** — `_extract_from_tables()` runs first (works for most structured bank PDFs). If it returns empty, `_extract_from_text()` regex fallback runs. Real-world PDFs vary hugely; expect to tune.
-- **Date formats** — `DATE_FORMATS` list in `csv_parser.py` covers common formats. Add new ones there if a bank uses an unusual format.
-- **Amount sign** — all `amount` values stored as positive `NUMERIC`. `type` column (`debit`/`credit`) carries the sign semantics. Dashboard queries filter `WHERE type = 'debit'` for expense calculations.
-- **TanStack Query invalidation** — after any mutation (upload, category change, delete), call `queryClient.invalidateQueries()` with no args to refresh all dependent queries.
-- **Async SQLAlchemy** — always `await db.execute(...)`, never use synchronous ORM patterns. Use `text()` for raw SQL queries.
+- **PDF-Parser** — `_extract_from_tables()` zuerst, dann Regex-Fallback. Echte PDFs variieren stark.
+- **Datumsformate** — `DATE_FORMATS` in `csv_parser.py` ergänzen falls nötig
+- **Betragsvorzeichen** — alle `amount`-Werte positiv; `type`-Spalte (`debit`/`credit`) trägt das Vorzeichen
+- **lru_cache auf get_settings()** — nach `.env`-Änderungen ggf. Prozess neu starten
+- **Async SQLAlchemy** — immer `await db.execute(...)`, niemals synchrone ORM-Muster
 
-## What NOT to do
+## Was NICHT tun
 
-- Do not add a `created_at` to `merchant_rules` — it's intentionally a simple lookup table
-- Do not add JWT expiry — this is a personal local tool, token persistence is a feature
-- Do not add a separate Postgres setup — SQLite is intentional (zero server, data stays local)
-- Do not change the `dedup_hash` algorithm — existing rows would lose their dedup protection
+- `dedup_hash`-Algorithmus nicht ändern — bestehende Zeilen verlieren Duplikatschutz
+- Kein FastAPI wieder hinzufügen — CLI ist der einzige Einstiegspunkt
+- Kein Frontend in diesem Repo — wird in späterer Iteration mit anderem Ansatz gebaut
+- SQLite nicht durch Postgres ersetzen — Null-Server, Daten bleiben lokal

@@ -12,17 +12,18 @@ _SYSTEM_PROMPT_TEMPLATE = """Du bist ein Kategorisierer für Finanztransaktionen
 {categories}
 
 Regeln:
-- Restaurants, Cafés, Fastfood → Essen & Trinken
+- Restaurants, Cafés, Fastfood, Bäckereien → Restaurant
 - Supermärkte, Lebensmittelgeschäfte (Edeka, Rewe, Aldi, Lidl usw.) → Lebensmittel
 - Netflix, Spotify, Software-Abonnements → Abonnements
-- Uber, Taxi, Tankstellen, Parken, ÖPNV → Verkehr
+- Auto, Werkstatt, Tankstellen, Parken, ÖPNV, Leasing → Mobilität
 - Amazon, Kleidung, Elektronik → Einkaufen
 - Arzt, Apotheke, Fitnessstudio → Gesundheit
-- Miete, Hypothek → Wohnen
+- Miete, Hypothek, WEG → Wohnen
 - Strom, Internet, Telefon → Haushalt
 - Fluggesellschaften, Hotels → Reisen
 - Gehalt, Einnahmen, Erstattungen → Einnahmen
-- Banküberweisung, Geldautomat → Umbuchungen
+- PayPal-Zahlungen → PayPal
+- Kreditkartenabrechnung, Barclays, ABRECHNUNG KARTE → Kreditkarte
 - Bei Unsicherheit → Sonstiges
 
 Antworte NUR mit einem JSON-Objekt: {{"Händlername": "Kategorie", ...}}"""

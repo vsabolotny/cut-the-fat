@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Cut the Fat CLI entry point
+cd "$(dirname "$0")"
+exec backend/.venv/bin/python -m cli.main "$@"

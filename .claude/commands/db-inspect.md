@@ -33,4 +33,4 @@ Run these queries against the database at `backend/cut_the_fat.db`:
    "
    ```
 
-3. Report any anomalies: uploads with `status = 'error'`, transactions with `category = 'Other'` that have high amounts, or duplicate merchant_rules.
+3. Report any anomalies: uploads with `status = 'error'`, transactions with `category = 'Sonstiges'` that have high amounts (potential miscategorization), or duplicate merchant_rules.

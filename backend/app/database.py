@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 from .config import get_settings
 
 
@@ -13,6 +14,7 @@ def get_engine():
         settings.database_url,
         echo=False,
         connect_args={"check_same_thread": False},
+        poolclass=NullPool,
     )
 
 

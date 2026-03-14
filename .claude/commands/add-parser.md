@@ -9,6 +9,6 @@ The user will describe which bank or format they're having trouble with. Follow 
 5. Make the targeted fix:
    - For CSV/Excel: add column name variants to the detection lists (`DATE_COLS`, `MERCHANT_COLS`, `AMOUNT_COLS`, `DEBIT_COLS`, `CREDIT_COLS`) or add a date format to `DATE_FORMATS` in `csv_parser.py`.
    - For PDF: improve the table extraction heuristics or add a regex pattern to the text fallback in `pdf_parser.py`.
-   - For a completely new format: create a new parser file following the `RawTransaction` dataclass interface from `base.py`, then register it in `uploads.py → _parse_file()`.
+   - For a completely new format: create a new parser file following the `RawTransaction` dataclass interface from `base.py`, then register it in `cli/db.py → _ingest_file()` (the `if ext == ...` dispatch block).
 6. Run the backend import check: `cd /Users/ecog-vladislav/Projects/cut-the-fat/backend && .venv/bin/python -c "from app.services.parser import csv_parser, pdf_parser, excel_parser; print('OK')"`
 7. Report what was changed and why.

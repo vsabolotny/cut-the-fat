@@ -22,6 +22,29 @@ DATE_FORMATS = [
     "%d.%m.%y",   # German short year
 ]
 
+# Merchant field values that are actually card-payment placeholders.
+# The real merchant is in the description/Verwendungszweck before the first "//".
+_CARD_PLACEHOLDERS = {
+    "abrechnung karte",
+    "kartenzahlung",
+    "card payment",
+    "pos-zahlung",
+    "pos zahlung",
+}
+
+
+def _extract_card_merchant(merchant: str, description: str) -> str:
+    """If merchant is a card-payment placeholder, extract real merchant from description."""
+    if merchant.lower().strip() not in _CARD_PLACEHOLDERS:
+        return merchant
+    # Description format: "REAL MERCHANT//CITY/DE DATE Kartennr. ..."
+    if "//" in description:
+        real = description.split("//")[0].strip()
+        if real:
+            return real
+    return merchant
+
+
 # Common column name patterns (normalized to lowercase)
 DATE_COLS = [
     "date", "transaction date", "trans date", "posted date", "value date",
@@ -94,13 +117,21 @@ def _parse_amount(val) -> Decimal | None:
     if not s:
         return None
 
+    # Strip currency symbols so they don't interfere with format detection
+    s = s.replace("€", "").replace("$", "").replace("£", "").strip()
+
     # Detect European format: comma is decimal separator, dot is thousands separator.
     # Heuristic: if there's a comma and it's followed by exactly 1 or 2 digits at the end.
     european = bool(re.search(r",\d{1,2}$", s))
+    # German thousands-only: dot followed by exactly 3 digits at end, no comma → e.g. "-1.990" = 1990
+    german_thousands = not european and bool(re.search(r"\.\d{3}$", s)) and "," not in s
 
     if european:
         # Remove dots (thousands separators), replace comma with dot (decimal)
         s = s.replace(".", "").replace(",", ".")
+    elif german_thousands:
+        # Remove dots (thousands separators), no decimal part
+        s = s.replace(".", "")
     else:
         # Remove commas (thousands separators), keep dot as decimal
         s = s.replace(",", "")
@@ -208,6 +239,9 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
             raw_desc = str(row.get(desc_col, "")).strip()
             if raw_desc and raw_desc.lower() not in ("nan", "none", ""):
                 description = raw_desc
+
+        # For card payments the real merchant is in the description
+        merchant = _extract_card_merchant(merchant, description)
 
         if debit_col and credit_col:
             debit_val = _parse_amount(row.get(debit_col))
