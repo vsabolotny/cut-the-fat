@@ -154,105 +154,162 @@ def _month_short(month: str) -> str:
     return f"{_MONTHS_DE[mon]} '{year}"
 
 
+def fmt_int(amount: float) -> str:
+    """Format amount as whole-number Euro: 1.234 €"""
+    return f"{round(amount):,} €".replace(",", ".")
+
+
 def show_multi_dashboard(history: dict) -> None:
     months = history["months"]
     categories = history["categories"]
     data = history["data"]
     monthly_totals = history["monthly_totals"]
+    monthly_income = history.get("monthly_income", [{"month": m, "total": 0.0, "natalie": 0.0} for m in months])
 
     if not months:
         console.print("  [dim]Keine Daten im gewählten Zeitraum.[/dim]")
         return
+
+    main_cats = [c for c in categories if _NATALIE_MARKER not in c]
+    natalie_cats = [c for c in categories if _NATALIE_MARKER in c]
 
     label = f"{_month_short(months[0])} – {_month_short(months[-1])}" if len(months) > 1 else _month_short(months[0])
     console.print()
     console.rule(f"[bold cyan]✂  Cut the Fat — {label}  ({len(months)} Monate)[/bold cyan]")
     console.print()
 
-    # --- Monthly totals row ---
-    overall_total = sum(t["total"] for t in monthly_totals)
-    console.print(f"  [bold]Gesamt ({len(months)} Monate):[/bold] [white]{fmt_eur(overall_total)}[/white]  "
-                  f"[dim]∅ {fmt_eur(overall_total / len(months))}/Monat[/dim]")
+    # --- Übersicht pro Monat ---
+    overall_expenses = sum(t["total"] for t in monthly_totals)
+    overall_income = sum(i["total"] for i in monthly_income)
+    overall_saldo = overall_income - overall_expenses
+
+    console.print(
+        f"  [bold]Ausgaben:[/bold] [cyan]{fmt_int(overall_expenses)}[/cyan]  "
+        f"[dim]∅ {fmt_int(overall_expenses / len(months))}/Monat[/dim]  │  "
+        f"[bold]Einnahmen:[/bold] [green]{fmt_int(overall_income)}[/green]  │  "
+        f"[bold]Saldo:[/bold] [{'green' if overall_saldo >= 0 else 'red'}]{fmt_int(overall_saldo)}[/{'green' if overall_saldo >= 0 else 'red'}]"
+    )
     console.print()
 
-    # Monthly totals table
+    inc_by_month = {i["month"]: i for i in monthly_income}
+    max_monthly = max((t["total"] for t in monthly_totals), default=1)
+
     mtable = Table(box=box.SIMPLE, show_header=True, header_style="bold dim")
     mtable.add_column("Monat", style="white", min_width=10)
-    mtable.add_column("Gesamt", justify="right", style="cyan", min_width=12)
+    mtable.add_column("Ausgaben", justify="right", style="cyan", min_width=10)
     mtable.add_column("vs. Vormonat", justify="right", min_width=14)
-    mtable.add_column("", min_width=16)
+    mtable.add_column("Einnahmen", justify="right", style="green", min_width=10)
+    mtable.add_column("Saldo", justify="right", min_width=10)
+    mtable.add_column("", min_width=14)
 
-    max_monthly = max((t["total"] for t in monthly_totals), default=1)
     for i, mt in enumerate(monthly_totals):
+        inc = inc_by_month.get(mt["month"], {}).get("total", 0.0)
+        saldo = inc - mt["total"]
+        saldo_str = f"[{'green' if saldo >= 0 else 'red'}]{fmt_int(saldo)}[/{'green' if saldo >= 0 else 'red'}]"
         if i > 0:
             delta = mt["total"] - monthly_totals[i - 1]["total"]
             prev = monthly_totals[i - 1]["total"]
             arrow = "▲" if delta > 0 else "▼"
             color = "red" if delta > 0 else "green"
             pct = abs(delta / prev * 100) if prev else 0
-            delta_str = f"[{color}]{arrow} {fmt_eur(abs(delta))} ({pct:.0f}%)[/{color}]"
+            delta_str = f"[{color}]{arrow} {fmt_int(abs(delta))} ({pct:.0f}%)[/{color}]"
         else:
             delta_str = "[dim]—[/dim]"
-        bar = _bar(mt["total"], max_monthly, 14)
-        mtable.add_row(_month_short(mt["month"]), fmt_eur(mt["total"]), delta_str, f"[cyan]{bar}[/cyan]")
+        bar = _bar(mt["total"], max_monthly, 12)
+        mtable.add_row(_month_short(mt["month"]), fmt_int(mt["total"]), delta_str,
+                       fmt_int(inc), saldo_str, f"[cyan]{bar}[/cyan]")
 
     console.print(mtable)
 
-    # --- Aggregated category breakdown ---
-    cat_totals = [
-        {"category": cat, "total": sum(data[cat])}
-        for cat in categories
-    ]
-    cat_totals.sort(key=lambda x: x["total"], reverse=True)
-    max_cat = cat_totals[0]["total"] if cat_totals else 1
+    # --- Ausgaben nach Kategorie ---
+    main_totals = [{"category": c, "total": sum(data[c])} for c in main_cats]
+    main_totals.sort(key=lambda x: x["total"], reverse=True)
+    main_total = sum(c["total"] for c in main_totals)
+    max_main = main_totals[0]["total"] if main_totals else 1
 
-    console.print("  [bold dim]Kategorien (gesamt)[/bold dim]")
+    console.rule("[bold]Ausgaben[/bold]", style="cyan")
     console.print()
     ctable = Table(box=box.SIMPLE, show_header=True, header_style="bold dim")
     ctable.add_column("Kategorie", style="white", min_width=20)
-    ctable.add_column("Gesamt", justify="right", style="cyan", min_width=12)
-    ctable.add_column("∅/Monat", justify="right", min_width=12)
+    ctable.add_column("Gesamt", justify="right", style="cyan", min_width=10)
+    ctable.add_column("∅/Monat", justify="right", min_width=10)
     ctable.add_column("Anteil", justify="right", min_width=6)
     ctable.add_column("", min_width=20)
+    for c in main_totals:
+        pct_share = c["total"] / main_total * 100 if main_total > 0 else 0
+        bar = _bar(c["total"], max_main, 18)
+        ctable.add_row(c["category"], fmt_int(c["total"]), fmt_int(c["total"] / len(months)),
+                       f"{pct_share:.1f}%", f"[cyan]{bar}[/cyan]")
+    console.print(ctable)
+    console.print(f"  [bold]Gesamt:[/bold] [cyan]{fmt_int(main_total)}[/cyan]  [dim]∅ {fmt_int(main_total / len(months))}/Monat[/dim]")
 
-    for c in cat_totals:
-        pct_share = c["total"] / overall_total * 100 if overall_total > 0 else 0
-        avg = c["total"] / len(months)
-        bar = _bar(c["total"], max_cat, 18)
-        ctable.add_row(
-            c["category"],
-            fmt_eur(c["total"]),
-            fmt_eur(avg),
-            f"{pct_share:.1f}%",
-            f"[cyan]{bar}[/cyan]",
+    # --- Natalie ---
+    if natalie_cats:
+        nat_totals = [{"category": c, "total": sum(data[c])} for c in natalie_cats]
+        nat_totals.sort(key=lambda x: x["total"], reverse=True)
+        nat_expenses = sum(c["total"] for c in nat_totals)
+        nat_income = sum(i.get("natalie", 0.0) for i in monthly_income)
+        nat_saldo = nat_income - nat_expenses
+        nat_saldo_color = "green" if nat_saldo >= 0 else "red"
+        max_nat = nat_totals[0]["total"] if nat_totals else 1
+
+        console.rule("[bold]Natalie[/bold]", style="magenta")
+        console.print()
+        ntable = Table(box=box.SIMPLE, show_header=True, header_style="bold dim")
+        ntable.add_column("Kategorie", style="white", min_width=20)
+        ntable.add_column("Gesamt", justify="right", style="magenta", min_width=10)
+        ntable.add_column("∅/Monat", justify="right", min_width=10)
+        ntable.add_column("Anteil", justify="right", min_width=6)
+        ntable.add_column("", min_width=20)
+        for c in nat_totals:
+            pct_share = c["total"] / nat_expenses * 100 if nat_expenses > 0 else 0
+            bar = _bar(c["total"], max_nat, 18)
+            ntable.add_row(c["category"], fmt_int(c["total"]), fmt_int(c["total"] / len(months)),
+                           f"{pct_share:.1f}%", f"[magenta]{bar}[/magenta]")
+        console.print(ntable)
+        console.print(
+            f"  [bold]Ausgaben:[/bold] [magenta]{fmt_int(nat_expenses)}[/magenta]  │  "
+            f"[bold]Einnahmen:[/bold] [green]{fmt_int(nat_income)}[/green]  │  "
+            f"Saldo: [{nat_saldo_color}]{fmt_int(nat_saldo)}[/{nat_saldo_color}]"
         )
 
-    console.print(ctable)
+    # --- Einnahmen ---
+    console.rule("[bold]Einnahmen[/bold]", style="green")
+    console.print()
+    itable = Table(box=box.SIMPLE, show_header=True, header_style="bold dim")
+    itable.add_column("Monat", style="white", min_width=10)
+    itable.add_column("Gesamt", justify="right", style="green", min_width=10)
+    itable.add_column("Natalie", justify="right", min_width=10)
+    itable.add_column("Eigene", justify="right", min_width=10)
+    for i in monthly_income:
+        eigene = i["total"] - i.get("natalie", 0.0)
+        itable.add_row(_month_short(i["month"]), fmt_int(i["total"]),
+                       fmt_int(i.get("natalie", 0.0)), fmt_int(eigene))
+    console.print(itable)
+    console.print(f"  [bold]Gesamt:[/bold] [green]{fmt_int(overall_income)}[/green]  [dim]∅ {fmt_int(overall_income / len(months))}/Monat[/dim]")
 
-    # --- Per-category trend (only if > 1 month) ---
-    if len(months) > 1 and len(categories) > 0:
-        console.print("  [bold dim]Trend pro Kategorie[/bold dim]")
+    # --- Trend (nur Ausgaben, top 8 Hauptkategorien) ---
+    if len(months) > 1 and main_totals:
+        console.rule("[bold dim]Trend Ausgaben[/bold dim]", style="dim")
         console.print()
         ttable = Table(box=box.SIMPLE, show_header=True, header_style="bold dim")
         ttable.add_column("Kategorie", style="white", min_width=20)
         for m in months:
-            ttable.add_column(_month_short(m), justify="right", min_width=10)
+            ttable.add_column(_month_short(m), justify="right", min_width=9)
 
-        # show top 8 categories by total only
-        top_cats = [c["category"] for c in cat_totals[:8]]
+        top_cats = [c["category"] for c in main_totals[:8]]
         for cat in top_cats:
-            row_vals = []
             vals = data[cat]
             max_val = max(vals) if vals else 1
+            row_vals = []
             for v in vals:
                 if v == 0:
                     row_vals.append("[dim]—[/dim]")
                 elif v == max_val:
-                    row_vals.append(f"[bold cyan]{fmt_eur(v)}[/bold cyan]")
+                    row_vals.append(f"[bold cyan]{fmt_int(v)}[/bold cyan]")
                 else:
-                    row_vals.append(fmt_eur(v))
+                    row_vals.append(fmt_int(v))
             ttable.add_row(cat, *row_vals)
-
         console.print(ttable)
 
 

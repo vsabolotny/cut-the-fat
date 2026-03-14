@@ -266,14 +266,28 @@ async def _get_history(months: int) -> dict:
         )
         rows = result.all()
 
-    months_list = sorted({r[0] for r in rows})
-    categories_list = sorted({r[1] for r in rows})
+    async with AsyncSessionLocal() as db2:
+        inc_result = await db2.execute(
+            text("""
+                SELECT strftime('%Y-%m', date) as month, category, SUM(amount) as total
+                FROM transactions
+                WHERE type='credit'
+                  AND date >= date('now', :offset)
+                GROUP BY month, category
+                ORDER BY month ASC
+            """),
+            {"offset": f"-{months} months"},
+        )
+        inc_rows = inc_result.all()
 
-    # data[category][month_index] = total
+    months_list = sorted({r[0] for r in rows} | {r[0] for r in inc_rows})
+    categories_list = sorted({r[1] for r in rows})
+    month_index = {m: i for i, m in enumerate(months_list)}
+
+    # data[category][month_index] = total (debit)
     data: dict[str, list[float]] = {
         cat: [0.0] * len(months_list) for cat in categories_list
     }
-    month_index = {m: i for i, m in enumerate(months_list)}
     for row in rows:
         data[row[1]][month_index[row[0]]] = float(row[2])
 
@@ -282,11 +296,26 @@ async def _get_history(months: int) -> dict:
         for i, m in enumerate(months_list)
     ]
 
+    # income per month: total, natalie portion
+    income_by_month: dict[str, float] = {m: 0.0 for m in months_list}
+    natalie_income_by_month: dict[str, float] = {m: 0.0 for m in months_list}
+    for row in inc_rows:
+        m, cat, total = row[0], row[1], float(row[2])
+        income_by_month[m] = income_by_month.get(m, 0.0) + total
+        if "Natalie" in cat:
+            natalie_income_by_month[m] = natalie_income_by_month.get(m, 0.0) + total
+
+    monthly_income = [
+        {"month": m, "total": income_by_month[m], "natalie": natalie_income_by_month[m]}
+        for m in months_list
+    ]
+
     return {
         "months": months_list,
         "categories": categories_list,
         "data": data,
         "monthly_totals": monthly_totals,
+        "monthly_income": monthly_income,
     }
 
 
