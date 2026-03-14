@@ -3,9 +3,9 @@
 
 # Python
 backend/.venv/
-backend/__pycache__/
-backend/**/__pycache__/
-backend/**/*.pyc
+__pycache__/
+**/__pycache__/
+**/*.pyc
 backend/*.db
 backend/*.db-shm
 backend/*.db-wal
