@@ -12,14 +12,14 @@ _SYSTEM_PROMPT_TEMPLATE = """Du bist ein Kategorisierer für Finanztransaktionen
 {categories}
 
 Regeln:
-- Restaurants, Cafés, Fastfood, Bäckereien → Restaurant
+- Restaurants, Cafés, Fastfood, Bäckereien, Bars, Clubs → Essen & Trinken
 - Supermärkte, Lebensmittelgeschäfte (Edeka, Rewe, Aldi, Lidl usw.) → Lebensmittel
 - Netflix, Spotify, Software-Abonnements → Abonnements
 - Auto, Werkstatt, Tankstellen, Parken, ÖPNV, Leasing → Mobilität
 - Amazon, Kleidung, Elektronik → Einkaufen
 - Arzt, Apotheke, Fitnessstudio → Gesundheit
 - Miete, Hypothek, WEG → Wohnen
-- Strom, Internet, Telefon → Haushalt
+- Strom, Gas, Wasser → Wohnen
 - Fluggesellschaften, Hotels → Reisen
 - Gehalt, Einnahmen, Erstattungen → Einnahmen
 - PayPal-Zahlungen → PayPal

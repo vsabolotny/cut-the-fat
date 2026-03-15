@@ -9,3 +9,5 @@ pdfplumber>=0.11
 anthropic>=0.27
 click>=8.1
 rich>=13.0
+textual>=0.61
+matplotlib>=3.8
