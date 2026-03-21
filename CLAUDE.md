@@ -92,7 +92,7 @@ cut-the-fat/
 
 ## Kategorien (kanonisch, Deutsch)
 
-`Wohnen, Lebensmittel, Essen & Trinken, Verkehr, Freizeit, Gesundheit, Einkaufen, Abonnements, Reisen, Bildung, Haushalt, Versicherungen, Einnahmen, Umbuchungen, Sonstiges`
+`Wohnen, Lebensmittel, Essen & Trinken, Mobilität, Freizeit, Gesundheit, Drogerie, Shopping, Abonnements, Urlaub, Bildung, Kommunikation, Versicherungen, Kinder, Post & Versand, Business Natalie, Kinder Natalie, Wohnen Natalie, Einnahmen, Einnahmen Natalie, Einkommensteuer, PayPal, Bargeld, Kreditkarte, Eigenüberweisung, Sonstiges`
 
 Neue Kategorie hinzufügen: `CATEGORIES` in `backend/app/models/transaction.py` aktualisieren. Beim nächsten CLI-Start wird sie automatisch in die `categories`-Tabelle gesetzt.
 
