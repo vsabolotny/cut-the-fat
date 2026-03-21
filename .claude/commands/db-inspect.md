@@ -3,11 +3,11 @@ Inspect the current state of the SQLite database: show row counts, recent upload
 Run these queries against the database at `backend/cut_the_fat.db`:
 
 1. Check the database exists:
-   `ls -lh /Users/ecog-vladislav/Projects/cut-the-fat/backend/cut_the_fat.db`
+   `ls -lh backend/cut_the_fat.db`
 
 2. Run a summary query:
    ```bash
-   cd /Users/ecog-vladislav/Projects/cut-the-fat/backend && .venv/bin/python -c "
+   cd backend && .venv/bin/python -c "
    import asyncio
    from app.database import AsyncSessionLocal
    from sqlalchemy import text

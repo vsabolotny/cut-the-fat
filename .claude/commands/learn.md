@@ -2,7 +2,7 @@ Unkategorisierte Händler interaktiv kategorisieren (Q&A-Agent).
 
 Führe aus:
 ```bash
-cd /Users/ecog-vladislav/Projects/cut-the-fat && ./ctf learn $ARGUMENTS
+cd . . &&. && ./ctf learn $ARGUMENTS
 ```
 
 Dies ist ein interaktiver Befehl. Der Benutzer wird durch jeden Händler geführt und kann:
