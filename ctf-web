@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Cut the Fat — Web UI entry point
+cd "$(dirname "$0")"
+exec backend/.venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8080 --reload

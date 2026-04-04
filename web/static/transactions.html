@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transaktionen — Cut the Fat</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="transactions.css">
+</head>
+<body>
+  <div id="txn-app">
+
+    <!-- Header -->
+    <header class="txn-header">
+      <div class="header-left">
+        <a href="/" class="logo">&#9986; Cut the Fat</a>
+        <span class="page-title">Transaktionen</span>
+      </div>
+      <div class="header-right">
+        <a href="/" class="nav-link">&#8592; Chat</a>
+      </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <!-- Quick filters -->
+        <div class="quick-filters">
+          <button class="pill active" data-range="last-month">Letzter Monat</button>
+          <button class="pill" data-range="this-month">Dieser Monat</button>
+          <button class="pill" data-range="last-quarter">Letztes Quartal</button>
+          <button class="pill" data-range="this-year">Dieses Jahr</button>
+          <button class="pill" data-range="all">Alle</button>
+        </div>
+
+        <!-- Date range -->
+        <div class="date-filters">
+          <label>
+            <span>Von</span>
+            <input type="date" id="date-from">
+          </label>
+          <label>
+            <span>Bis</span>
+            <input type="date" id="date-to">
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <!-- Category filter -->
+        <select id="filter-category">
+          <option value="Alle">Alle Kategorien</option>
+        </select>
+
+        <!-- Type filter -->
+        <select id="filter-type">
+          <option value="all">Ausgaben &amp; Einnahmen</option>
+          <option value="debit" selected>Nur Ausgaben</option>
+          <option value="credit">Nur Einnahmen</option>
+        </select>
+
+        <!-- Merchant search -->
+        <input type="text" id="filter-merchant" placeholder="H&auml;ndler suchen...">
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="txn-summary">
+      <div class="summary-stat">
+        <span class="stat-label">Transaktionen</span>
+        <span class="stat-value" id="stat-count">—</span>
+      </div>
+      <div class="summary-stat">
+        <span class="stat-label">Ausgaben</span>
+        <span class="stat-value debit" id="stat-debit">—</span>
+      </div>
+      <div class="summary-stat">
+        <span class="stat-label">Einnahmen</span>
+        <span class="stat-value credit" id="stat-credit">—</span>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="txn-table-wrap">
+      <table class="txn-table" id="txn-table">
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>H&auml;ndler</th>
+            <th>Beschreibung</th>
+            <th class="num">Betrag</th>
+            <th>Kategorie</th>
+            <th>Quelle</th>
+          </tr>
+        </thead>
+        <tbody id="txn-body"></tbody>
+      </table>
+      <div id="txn-loading" class="txn-loading hidden">
+        <div class="spinner"></div> Lade...
+      </div>
+      <div id="txn-empty" class="txn-empty hidden">Keine Transaktionen gefunden.</div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="txn-pagination" id="pagination"></div>
+
+  </div>
+
+  <!-- Category edit modal -->
+  <div id="cat-modal" class="cat-modal-overlay hidden">
+    <div class="cat-modal">
+      <div class="cat-modal-title" id="modal-merchant"></div>
+      <div class="cat-modal-subtitle" id="modal-info"></div>
+      <select class="cat-select" id="modal-select"></select>
+      <label class="modal-checkbox">
+        <input type="checkbox" id="modal-apply-all" checked>
+        Alle Transaktionen dieses H&auml;ndlers &auml;ndern
+      </label>
+      <div class="cat-modal-actions">
+        <button class="action-btn" id="modal-cancel">Abbrechen</button>
+        <button class="action-btn" id="modal-ok" style="border-color:var(--accent);color:var(--accent);">&Uuml;bernehmen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="transactions.js"></script>
+</body>
+</html>

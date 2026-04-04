@@ -30,9 +30,9 @@ Antworte NUR mit einem JSON-Objekt: {{"Händlername": "Kategorie", ...}}"""
 
 
 def normalize_merchant(merchant: str) -> str:
-    """Lowercase, strip special chars, collapse whitespace."""
+    """Lowercase, strip special chars but keep unicode letters (umlauts etc), collapse whitespace."""
     s = merchant.lower()
-    s = re.sub(r"[^a-z0-9 ]", " ", s)
+    s = re.sub(r"[^\w ]", " ", s, flags=re.UNICODE)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
