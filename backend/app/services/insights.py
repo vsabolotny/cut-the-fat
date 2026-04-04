@@ -35,7 +35,7 @@ async def _get_aggregated_data(db: AsyncSession) -> dict:
     """Aggregate last 3 months of spending for insights."""
     from sqlalchemy import text
 
-    # Get monthly category totals for last 6 months
+    # Get monthly category totals for last 6 months (exclude Natalie categories)
     result = await db.execute(
         text("""
             SELECT
@@ -45,13 +45,14 @@ async def _get_aggregated_data(db: AsyncSession) -> dict:
             FROM transactions
             WHERE type = 'debit'
               AND date >= date('now', '-6 months')
+              AND category NOT LIKE '%Natalie%'
             GROUP BY month, category
             ORDER BY month DESC
         """)
     )
     monthly_cats = [{"month": r[0], "category": r[1], "total": float(r[2])} for r in result]
 
-    # Top merchants by spend in last 3 months
+    # Top merchants by spend in last 3 months (exclude Natalie categories)
     result = await db.execute(
         text("""
             SELECT
@@ -62,6 +63,7 @@ async def _get_aggregated_data(db: AsyncSession) -> dict:
             FROM transactions
             WHERE type = 'debit'
               AND date >= date('now', '-3 months')
+              AND category NOT LIKE '%Natalie%'
             GROUP BY merchant_normalized, category
             ORDER BY total DESC
             LIMIT 20
@@ -72,7 +74,7 @@ async def _get_aggregated_data(db: AsyncSession) -> dict:
         for r in result
     ]
 
-    # Subscription-like merchants (appeared every month for 3+ months)
+    # Subscription-like merchants (appeared every month for 3+ months, exclude Natalie)
     result = await db.execute(
         text("""
             SELECT
@@ -82,6 +84,7 @@ async def _get_aggregated_data(db: AsyncSession) -> dict:
             FROM transactions
             WHERE type = 'debit'
               AND date >= date('now', '-6 months')
+              AND category NOT LIKE '%Natalie%'
             GROUP BY merchant_normalized
             HAVING months >= 3
             ORDER BY months DESC, avg_amount DESC

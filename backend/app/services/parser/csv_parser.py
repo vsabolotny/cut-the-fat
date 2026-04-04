@@ -160,7 +160,8 @@ def _detect_separator(content: bytes) -> str:
 
 
 def _read_df(content: bytes) -> pd.DataFrame:
-    """Try several encoding + separator combinations, always skipping bad lines."""
+    """Try several encoding + separator combinations, always skipping bad lines.
+    Auto-detects header row by skipping leading rows where most columns are unnamed."""
     sep = _detect_separator(content)
     read_kwargs = dict(
         dtype=str,
@@ -170,12 +171,17 @@ def _read_df(content: bytes) -> pd.DataFrame:
         encoding_errors="replace",
     )
     for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
-        try:
-            df = pd.read_csv(BytesIO(content), encoding=enc, **read_kwargs)
-            if len(df.columns) >= 2:
-                return df
-        except Exception:
-            continue
+        for skip in (0, 1, 2, 3):
+            try:
+                df = pd.read_csv(BytesIO(content), encoding=enc, skiprows=skip, **read_kwargs)
+                if len(df.columns) < 2:
+                    continue
+                # Check if this looks like a real header: at most half the columns should be "unnamed"
+                unnamed = sum(1 for c in df.columns if str(c).lower().startswith("unnamed"))
+                if unnamed <= len(df.columns) // 2:
+                    return df
+            except Exception:
+                continue
     raise ValueError("Could not parse CSV with any known encoding")
 
 
