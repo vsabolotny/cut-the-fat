@@ -64,7 +64,13 @@ AMOUNT_COLS = [
     "amount", "transaction amount", "sum",
     # German
     "betrag", "umsatz",
+    # PayPal
+    "brutto", "netto",
 ]
+
+# Column name patterns that look numeric but aren't amounts (time, codes, etc.)
+_NON_AMOUNT_PATTERNS = {"uhrzeit", "time", "zeitzone", "timezone", "transaktionscode",
+                         "transaction code", "rechnungsnummer", "invoice", "code"}
 DEBIT_COLS = [
     "debit", "debit amount", "withdrawal", "withdrawals", "dr", "charge",
     # German
@@ -159,9 +165,25 @@ def _detect_separator(content: bytes) -> str:
     return max([(";", semicolons), (",", commas), ("\t", tabs)], key=lambda x: x[1])[0]
 
 
+_HEADER_HINTS = {"buchungstag", "buchungsdatum", "date", "transaction date", "posting date", "wertstellung"}
+
+
+def _find_header_row(content: bytes, sep: str, enc: str) -> int:
+    """Scan lines to find the row index that contains a known date-column keyword."""
+    try:
+        text = content.decode(enc, errors="replace")
+    except Exception:
+        return 0
+    for i, line in enumerate(text.splitlines()):
+        normalized = re.sub(r"[^a-z0-9 ]", " ", line.lower())
+        if any(hint in normalized.split() or hint in normalized for hint in _HEADER_HINTS):
+            return i
+    return 0
+
+
 def _read_df(content: bytes) -> pd.DataFrame:
     """Try several encoding + separator combinations, always skipping bad lines.
-    Auto-detects header row by skipping leading rows where most columns are unnamed."""
+    Auto-detects header row by scanning for a row containing date-column keywords."""
     sep = _detect_separator(content)
     read_kwargs = dict(
         dtype=str,
@@ -171,17 +193,30 @@ def _read_df(content: bytes) -> pd.DataFrame:
         encoding_errors="replace",
     )
     for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
-        for skip in (0, 1, 2, 3):
+        skip = _find_header_row(content, sep, enc)
+        for s in sorted({skip, 0, 1, 2, 3}):
             try:
-                df = pd.read_csv(BytesIO(content), encoding=enc, skiprows=skip, **read_kwargs)
+                df = pd.read_csv(BytesIO(content), encoding=enc, skiprows=s, **read_kwargs)
                 if len(df.columns) < 2:
                     continue
-                # Check if this looks like a real header: at most half the columns should be "unnamed"
                 unnamed = sum(1 for c in df.columns if str(c).lower().startswith("unnamed"))
                 if unnamed <= len(df.columns) // 2:
-                    return df
+                    # Prefer the row detected by keyword scan
+                    if s == skip and skip > 0:
+                        return df
+                    # Fall back to any valid-looking header
+                    cols_norm = [_normalize_col(c) for c in df.columns]
+                    if any(c in DATE_COLS or "tag" in c or "datum" in c or "date" in c for c in cols_norm):
+                        return df
             except Exception:
                 continue
+        # Last resort: just use the keyword-detected skip row
+        try:
+            df = pd.read_csv(BytesIO(content), encoding=enc, skiprows=skip, **read_kwargs)
+            if len(df.columns) >= 2:
+                return df
+        except Exception:
+            continue
     raise ValueError("Could not parse CSV with any known encoding")
 
 
@@ -268,12 +303,14 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
             amount = _parse_amount(raw)
             if amount is None:
                 continue
-            txn_type = "credit" if is_negative else "debit"
+            txn_type = "debit" if is_negative else "credit"
         else:
-            # Last resort: find any numeric-looking column
+            # Last resort: find any numeric-looking column (skip known non-amount cols)
             found = False
             for c in cols:
                 if c in (date_col, merchant_col):
+                    continue
+                if any(pat in c for pat in _NON_AMOUNT_PATTERNS):
                     continue
                 val = _parse_amount(row.get(c))
                 if val and val > 0:
