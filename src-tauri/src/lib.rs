@@ -1,40 +1,47 @@
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
-use tokio::sync::OnceCell;
+use tokio::sync::watch;
 use std::sync::Arc;
 
-/// Shared state: holds the dynamically assigned backend port.
 struct BackendState {
-    port: OnceCell<u16>,
+    port_rx: watch::Receiver<Option<u16>>,
 }
 
 /// IPC command: frontend calls this to get the backend port.
 /// Waits up to 30s for the sidecar to signal READY.
 #[tauri::command]
 async fn get_backend_port(state: tauri::State<'_, Arc<BackendState>>) -> Result<u16, String> {
+    let mut rx = state.port_rx.clone();
     match tokio::time::timeout(
         std::time::Duration::from_secs(30),
-        state.port.wait(),
+        async move {
+            loop {
+                if let Some(port) = *rx.borrow() {
+                    return Ok(port);
+                }
+                rx.changed().await.map_err(|_| "channel closed".to_string())?;
+            }
+        },
     )
     .await
     {
-        Ok(port) => Ok(*port),
+        Ok(Ok(port)) => Ok(port),
+        Ok(Err(e)) => Err(e),
         Err(_) => Err("Backend-Timeout: Sidecar hat nicht rechtzeitig geantwortet.".into()),
     }
 }
 
 pub fn run() {
+    let (port_tx, port_rx) = watch::channel(None::<u16>);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![get_backend_port])
-        .setup(|app| {
-            let state = Arc::new(BackendState {
-                port: OnceCell::new(),
-            });
-            app.manage(state.clone());
+        .setup(move |app| {
+            app.manage(Arc::new(BackendState { port_rx }));
 
             // Pick a free port for the Python sidecar
             let port = portpicker::pick_unused_port().expect("Kein freier Port gefunden");
@@ -60,7 +67,7 @@ pub fn run() {
                             let trimmed = line.trim();
                             if trimmed.starts_with("READY:") {
                                 if let Ok(p) = trimmed[6..].parse::<u16>() {
-                                    let _ = state.port.set(p);
+                                    let _ = port_tx.send(Some(p));
                                 }
                             }
                         }

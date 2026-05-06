@@ -4,8 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.paulwilke.cutthefat",
   "build": {
-    "frontendDist": "../web/static",
-    "devUrl": "http://localhost:1420"
+    "frontendDist": "../web/static"
   },
   "bundle": {
     "active": true,
@@ -18,7 +17,7 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/ctf-sidecar"],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   },
   "app": {
     "windows": [
@@ -34,12 +33,6 @@
       "csp": "default-src 'self'; connect-src 'self' ws://localhost:* http://localhost:*; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     }
   },
-  "plugins": {
-    "updater": {
-      "pubkey": "",
-      "endpoints": [
-        "https://github.com/paulwilke/cut-the-fat/releases/latest/download/latest.json"
-      ]
-    }
-  }
+  "plugins": {}
+
 }

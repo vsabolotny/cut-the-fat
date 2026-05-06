@@ -285,6 +285,50 @@ async def api_bugreport(body: dict):
     return result
 
 
+# ── Settings (API key) ──
+
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+@app.get("/api/settings")
+async def api_settings_get():
+    """Return current settings (API key masked)."""
+    from app.config import get_settings
+    settings = get_settings()
+    key = settings.anthropic_api_key or ""
+    masked = ("*" * (len(key) - 4) + key[-4:]) if len(key) > 4 else ("*" * len(key))
+    return {"anthropic_key_set": bool(key), "anthropic_key_masked": masked}
+
+
+@app.post("/api/settings")
+async def api_settings_set(body: dict):
+    """Save API key to .env and invalidate settings cache."""
+    from app.config import get_settings
+    key = (body.get("anthropic_api_key") or "").strip()
+
+    # Read existing .env or start fresh
+    lines = []
+    if _ENV_FILE.exists():
+        lines = _ENV_FILE.read_text(encoding="utf-8").splitlines()
+
+    # Replace or append ANTHROPIC_API_KEY line
+    found = False
+    for i, line in enumerate(lines):
+        if line.startswith("ANTHROPIC_API_KEY=") or line.startswith("ANTHROPIC_API_KEY ="):
+            lines[i] = f"ANTHROPIC_API_KEY={key}"
+            found = True
+            break
+    if not found:
+        lines.append(f"ANTHROPIC_API_KEY={key}")
+
+    _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # Invalidate lru_cache so next call picks up the new value
+    get_settings.cache_clear()
+
+    return {"ok": True, "anthropic_key_set": bool(key)}
+
+
 # Static files (CSS, JS) — mounted last so routes take priority
 app.mount("/", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

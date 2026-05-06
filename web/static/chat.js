@@ -477,7 +477,7 @@ function renderAnthropicNotice(msg) {
     const url = msg.payload_url;
     if (!url) return;
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(apiUrl(url));
       const payload = await resp.json();
       openPayloadModal(payload, msg.title || 'Anthropic Payload');
     } catch (e) {
@@ -646,7 +646,7 @@ fileInput.addEventListener('change', async () => {
   formData.append('file', file);
 
   try {
-    const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+    const resp = await fetch(apiUrl('/api/upload'), { method: 'POST', body: formData });
     const result = await resp.json();
     removeProgress();
 
@@ -695,6 +695,64 @@ async function initStatus() {
 function apiUrl(path) {
   return BACKEND_BASE ? `${BACKEND_BASE}${path}` : path;
 }
+
+// ── Settings (API key) ──
+(function initSettings() {
+  const btn = document.getElementById('settings-btn');
+  const modal = document.getElementById('settings-modal');
+  if (!btn || !modal) return;
+
+  async function loadCurrentKey() {
+    try {
+      const data = await fetch(apiUrl('/api/settings')).then(r => r.json());
+      const status = document.getElementById('settings-apikey-status');
+      if (data.anthropic_key_set) {
+        status.textContent = `Aktuell gesetzt: ${data.anthropic_key_masked}`;
+        status.style.color = '#86efac';
+      } else {
+        status.textContent = 'Kein Key gesetzt — KI-Features nutzen Fallback.';
+        status.style.color = '#8b8fa8';
+      }
+    } catch (_) {}
+  }
+
+  btn.addEventListener('click', async () => {
+    document.getElementById('settings-apikey').value = '';
+    await loadCurrentKey();
+    modal.style.display = 'flex';
+    document.getElementById('settings-apikey').focus();
+  });
+
+  document.getElementById('settings-cancel').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+  document.getElementById('settings-save').addEventListener('click', async () => {
+    const key = document.getElementById('settings-apikey').value.trim();
+    const saveBtn = document.getElementById('settings-save');
+    saveBtn.textContent = '…';
+    saveBtn.disabled = true;
+    try {
+      const result = await fetch(apiUrl('/api/settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anthropic_api_key: key }),
+      }).then(r => r.json());
+      if (result.ok) {
+        modal.style.display = 'none';
+        // Refresh status in UI
+        const resp = await fetch(apiUrl('/api/status')).then(r => r.json());
+        globalStatus = resp;
+      }
+    } catch (err) {
+      document.getElementById('settings-apikey-status').textContent = `Fehler: ${err.message}`;
+    } finally {
+      saveBtn.textContent = 'Speichern';
+      saveBtn.disabled = false;
+    }
+  });
+})();
 
 // ── Bug Report (Tauri mode only) ──
 (function initBugReport() {

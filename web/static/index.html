@@ -80,6 +80,23 @@
       </div>
     </main>
 
+    <!-- Settings Button (immer sichtbar) -->
+    <button id="settings-btn" title="Einstellungen" style="position:fixed; bottom:18px; left:18px; width:44px; height:44px; border-radius:50%; border:1px solid #2e3348; background:#1a1d27; color:#8b8fa8; font-size:20px; cursor:pointer; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.4);">⚙</button>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:#1a1d27; border:1px solid #2e3348; border-radius:12px; padding:24px; width:440px; max-width:90vw;">
+        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">⚙ Einstellungen</h3>
+        <label style="display:block; font-size:12px; color:#8b8fa8; margin-bottom:6px;">Anthropic API Key</label>
+        <input id="settings-apikey" type="password" placeholder="sk-ant-..." style="width:100%; padding:8px 12px; margin-bottom:6px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; box-sizing:border-box;">
+        <div id="settings-apikey-status" style="font-size:11px; color:#8b8fa8; margin-bottom:14px;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="settings-cancel" style="padding:6px 16px; border-radius:16px; border:1px solid #2e3348; background:#242836; color:#8b8fa8; font-size:12px; cursor:pointer;">Abbrechen</button>
+          <button id="settings-save" style="padding:6px 16px; border-radius:16px; border:1px solid #6366f1; background:rgba(99,102,241,0.15); color:#6366f1; font-size:12px; cursor:pointer;">Speichern</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Bug Report Button (nur in Tauri Desktop-App sichtbar) -->
     <button id="bug-report-btn" title="Bug melden" style="display:none; position:fixed; bottom:18px; right:18px; width:44px; height:44px; border-radius:50%; border:1px solid #2e3348; background:#1a1d27; color:#f97316; font-size:20px; cursor:pointer; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.4);">🐛</button>
 
