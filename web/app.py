@@ -1,5 +1,11 @@
-"""Cut the Fat — FastAPI web app with WebSocket chat."""
+"""Cut the Fat — FastAPI web app with WebSocket chat.
+
+Kann standalone oder als Tauri-Sidecar laufen:
+  Standalone:  uvicorn web.app:app --host 127.0.0.1 --port 8080
+  Sidecar:     python -m web.app 8765   (gibt "READY:8765" auf stdout aus)
+"""
 import logging
+import sys
 import warnings
 
 # Suppress SQLAlchemy pool warnings (same as CLI)
@@ -15,11 +21,21 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from web.ws_manager import manager
 from web.logic.processor import process_message
 
 app = FastAPI(title="Cut the Fat")
+
+# CORS: Tauri WebView uses tauri://localhost (macOS) or https://tauri.localhost
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 UPLOAD_TMP = Path(__file__).resolve().parent.parent / "data" / "uploads"
@@ -249,5 +265,51 @@ async def api_anthropic_learn_payload():
     }
 
 
+@app.post("/api/bugreport")
+async def api_bugreport(body: dict):
+    """Accept a bug report from the desktop app and create a GitHub Issue."""
+    from web.handlers.bugreport import create_bug_report
+
+    title = body.get("title", "Bug Report aus Desktop-App")
+    description = body.get("description", "")
+    steps = body.get("steps", "")
+    chat_log = body.get("chat_log", "")
+
+    md_body = f"## Beschreibung\n\n{description}\n\n"
+    if steps:
+        md_body += f"## Schritte zur Reproduktion\n\n{steps}\n\n"
+    if chat_log:
+        md_body += f"## Chat-Kontext (letzte Nachrichten)\n\n```\n{chat_log}\n```\n"
+
+    result = await create_bug_report(title=title, body=md_body)
+    return result
+
+
 # Static files (CSS, JS) — mounted last so routes take priority
 app.mount("/", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# ── Sidecar entry point ──
+# When invoked as `python -m web.app <port>`, runs uvicorn and prints
+# the READY signal for Tauri to pick up.
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+
+    class ReadyServer(uvicorn.Server):
+        """Custom uvicorn Server that prints READY after startup."""
+
+        async def startup(self, sockets=None):
+            await super().startup(sockets)
+            # Signal to Tauri that the backend is listening
+            print(f"READY:{port}", flush=True)
+
+    config = uvicorn.Config(
+        app,
+        host="127.0.0.1",
+        port=port,
+        log_level="warning",
+    )
+    ReadyServer(config).run()

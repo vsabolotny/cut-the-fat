@@ -13,6 +13,7 @@ backend/*.db-wal
 # Frontend
 frontend/node_modules/
 frontend/dist/
+node_modules/
 
 # macOS
 .DS_Store
@@ -20,3 +21,12 @@ frontend/dist/
 # Bank statements and personal data
 data/
 analytics/
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/binaries/ctf-sidecar-*
+
+# PyInstaller
+dist/
+build/
+*.spec

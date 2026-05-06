@@ -1,5 +1,10 @@
 /* ── Cut the Fat — Split-View (WebSocket-Backend) ── */
 
+// ── Tauri detection & backend URL resolution ──
+const IS_TAURI = Boolean(window.__TAURI_INTERNALS__);
+let BACKEND_BASE = '';
+let WS_BASE = '';
+
 const chatMessages = document.getElementById('chat-messages');
 const form = document.getElementById('input-form');
 const input = document.getElementById('msg-input');
@@ -51,8 +56,25 @@ let reconnectTimer = null;
 let heartbeatTimer = null;
 
 function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws/chat`);
+  // In Tauri mode, resolve backend port via IPC first
+  if (IS_TAURI && !BACKEND_BASE) {
+    const { invoke } = window.__TAURI__.core;
+    invoke('get_backend_port').then(port => {
+      BACKEND_BASE = `http://localhost:${port}`;
+      WS_BASE = `ws://localhost:${port}`;
+      connectWS();  // retry with resolved URLs
+    }).catch(err => {
+      console.error('Backend port resolution failed:', err);
+      setTimeout(connectWS, 3000);
+    });
+    return;
+  }
+
+  const wsUrl = WS_BASE
+    ? `${WS_BASE}/ws/chat`
+    : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/chat`;
+
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     console.log('WS connected');
@@ -661,11 +683,99 @@ dropZone.addEventListener('drop', e => {
 // ── Init ──
 async function initStatus() {
   try {
-    const resp = await fetch('/api/status');
+    const statusUrl = BACKEND_BASE ? `${BACKEND_BASE}/api/status` : '/api/status';
+    const resp = await fetch(statusUrl);
     globalStatus = await resp.json();
   } catch (_) {
     globalStatus = { anthropic_enabled: null };
   }
 }
 
-initStatus().finally(() => connectWS());
+// Helper: resolve API URL (works in both standalone and Tauri mode)
+function apiUrl(path) {
+  return BACKEND_BASE ? `${BACKEND_BASE}${path}` : path;
+}
+
+// ── Bug Report (Tauri mode only) ──
+(function initBugReport() {
+  const btn = document.getElementById('bug-report-btn');
+  const modal = document.getElementById('bug-modal');
+  if (!btn || !modal) return;
+
+  // Show button only in Tauri
+  if (IS_TAURI) btn.style.display = 'block';
+
+  btn.addEventListener('click', () => {
+    modal.style.display = 'flex';
+    document.getElementById('bug-title').focus();
+  });
+
+  document.getElementById('bug-cancel').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  modal.addEventListener('click', e => {
+    if (e.target === modal) modal.style.display = 'none';
+  });
+
+  document.getElementById('bug-submit').addEventListener('click', async () => {
+    const title = document.getElementById('bug-title').value.trim();
+    const desc = document.getElementById('bug-desc').value.trim();
+    const steps = document.getElementById('bug-steps').value.trim();
+
+    if (!title && !desc) return;
+
+    // Collect last 50 chat messages as context
+    const msgs = Array.from(chatMessages.querySelectorAll('.msg-bubble'))
+      .slice(-50)
+      .map(el => el.textContent.trim())
+      .join('\n');
+
+    modal.style.display = 'none';
+
+    try {
+      const resp = await fetch(apiUrl('/api/bugreport'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title || 'Bug Report aus Desktop-App',
+          description: desc,
+          steps: steps,
+          chat_log: msgs,
+        }),
+      });
+      const result = await resp.json();
+      if (result.url) {
+        addBot(`✅ Bug Report erstellt: <a href="${result.url}" target="_blank">#${result.number}</a>`);
+      } else {
+        addBot(`⚠️ ${esc(result.error || 'Unbekannter Fehler')}`);
+      }
+    } catch (err) {
+      addBot(`❌ Bug Report fehlgeschlagen: ${esc(err.message)}`);
+    }
+
+    // Reset form
+    document.getElementById('bug-title').value = '';
+    document.getElementById('bug-desc').value = '';
+    document.getElementById('bug-steps').value = '';
+  });
+})();
+
+// ── Start ──
+async function init() {
+  if (IS_TAURI) {
+    // Resolve backend port first
+    try {
+      const { invoke } = window.__TAURI__.core;
+      const port = await invoke('get_backend_port');
+      BACKEND_BASE = `http://localhost:${port}`;
+      WS_BASE = `ws://localhost:${port}`;
+    } catch (err) {
+      console.error('Tauri backend port failed:', err);
+    }
+  }
+  await initStatus();
+  connectWS();
+}
+
+init();

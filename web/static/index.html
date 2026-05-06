@@ -80,6 +80,23 @@
       </div>
     </main>
 
+    <!-- Bug Report Button (nur in Tauri Desktop-App sichtbar) -->
+    <button id="bug-report-btn" title="Bug melden" style="display:none; position:fixed; bottom:18px; right:18px; width:44px; height:44px; border-radius:50%; border:1px solid #2e3348; background:#1a1d27; color:#f97316; font-size:20px; cursor:pointer; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.4);">🐛</button>
+
+    <!-- Bug Report Modal -->
+    <div id="bug-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:#1a1d27; border:1px solid #2e3348; border-radius:12px; padding:24px; width:420px; max-width:90vw;">
+        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">🐛 Bug melden</h3>
+        <input id="bug-title" type="text" placeholder="Kurzbeschreibung..." style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px;">
+        <textarea id="bug-desc" placeholder="Was ist passiert?" rows="3" style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical;"></textarea>
+        <textarea id="bug-steps" placeholder="Schritte zur Reproduktion (optional)" rows="2" style="width:100%; padding:8px 12px; margin-bottom:14px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical;"></textarea>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="bug-cancel" style="padding:6px 16px; border-radius:16px; border:1px solid #2e3348; background:#242836; color:#8b8fa8; font-size:12px; cursor:pointer;">Abbrechen</button>
+          <button id="bug-submit" style="padding:6px 16px; border-radius:16px; border:1px solid #6366f1; background:rgba(99,102,241,0.15); color:#6366f1; font-size:12px; cursor:pointer;">Senden</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="chat.js"></script>

@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# ────────────────────────────────────────────────────────
+# ctf-desktop — Startscript für die Cut the Fat Desktop-App
+# ────────────────────────────────────────────────────────
+#
+# Dieses Script baut den Python-Sidecar, benennt ihn um und
+# startet dann die Tauri-App im Entwicklungsmodus.
+#
+# Voraussetzungen:
+#   - Rust toolchain (rustup, cargo)
+#   - Node.js >= 18
+#   - Python 3.12+ venv unter backend/.venv/
+#   - PyInstaller (pip install pyinstaller)
+#   - Linux: libwebkit2gtk-4.1-dev + weitere (siehe doc/tauri-desktop.md)
+#
+# Nutzung:
+#   ./ctf-desktop              # Baut Sidecar + startet Tauri dev
+#   ./ctf-desktop --skip-build # Überspringt Sidecar-Build (wenn schon vorhanden)
+#   ./ctf-desktop --release    # Baut ein Release-Bundle
+#
+set -euo pipefail
+cd "$(dirname "$0")"
+
+SKIP_BUILD=false
+RELEASE=false
+
+for arg in "$@"; do
+  case $arg in
+    --skip-build) SKIP_BUILD=true ;;
+    --release)    RELEASE=true ;;
+    --help|-h)
+      echo "Nutzung: ./ctf-desktop [--skip-build] [--release]"
+      echo ""
+      echo "  --skip-build  Sidecar-Build überspringen (nutzt vorhandenes Binary)"
+      echo "  --release     Release-Bundle bauen statt Dev-Modus"
+      echo ""
+      echo "Voraussetzungen: Rust, Node.js >= 18, Python venv, PyInstaller"
+      echo "Details: doc/tauri-desktop.md"
+      exit 0
+      ;;
+  esac
+done
+
+# ── Prüfe Voraussetzungen ──
+
+check_cmd() {
+  if ! command -v "$1" &>/dev/null; then
+    echo "❌ $1 nicht gefunden. Bitte installieren."
+    exit 1
+  fi
+}
+
+check_cmd rustc
+check_cmd cargo
+check_cmd node
+
+VENV_PYTHON="backend/.venv/bin/python"
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+  VENV_PYTHON="backend/.venv/Scripts/python.exe"
+fi
+
+if [[ ! -f "$VENV_PYTHON" ]]; then
+  echo "❌ Python venv nicht gefunden: $VENV_PYTHON"
+  echo "   Bitte zuerst:  cd backend && python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+  exit 1
+fi
+
+# ── Tauri CLI prüfen / installieren ──
+
+if ! npx tauri --version &>/dev/null 2>&1; then
+  echo "📦 Installiere @tauri-apps/cli..."
+  npm install @tauri-apps/cli@latest
+fi
+
+# ── Sidecar bauen ──
+
+if [[ "$SKIP_BUILD" == false ]]; then
+  echo ""
+  echo "🔨 Baue Python-Sidecar..."
+  echo ""
+
+  # Prüfe PyInstaller
+  if ! "$VENV_PYTHON" -m PyInstaller --version &>/dev/null 2>&1; then
+    echo "📦 Installiere PyInstaller..."
+    "$VENV_PYTHON" -m pip install pyinstaller
+  fi
+
+  node scripts/build-sidecar.mjs
+  node scripts/rename-sidecar.mjs
+  echo ""
+fi
+
+# ── Starten ──
+
+if [[ "$RELEASE" == true ]]; then
+  echo "📦 Baue Release-Bundle..."
+  npx tauri build
+  echo ""
+  echo "✅ Release-Bundle liegt in src-tauri/target/release/bundle/"
+else
+  echo "🚀 Starte Tauri im Entwicklungsmodus..."
+  echo "   (Frontend: web/static/ | Backend: Python Sidecar)"
+  echo ""
+  npx tauri dev
+fi

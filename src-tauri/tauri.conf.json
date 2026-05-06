@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicholasgasior/tauri-config-schema/main/tauri.conf.schema.json",
+  "productName": "Cut the Fat",
+  "version": "0.1.0",
+  "identifier": "com.paulwilke.cutthefat",
+  "build": {
+    "frontendDist": "../web/static",
+    "devUrl": "http://localhost:1420"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/ctf-sidecar"],
+    "createUpdaterArtifacts": true
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "✂ Cut the Fat",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ws://localhost:* http://localhost:*; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/paulwilke/cut-the-fat/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
