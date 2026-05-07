@@ -35,9 +35,13 @@ jobs:
           pip install pyinstaller
           pip install -r backend/requirements.txt
 
-      - name: Build sidecar
+      - name: Build sidecar (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           pyinstaller --onefile --name ctf-sidecar --strip \
+            --paths=backend \
+            --paths=. \
+            --add-data=web/static:static \
             --hidden-import=uvicorn.logging \
             --hidden-import=uvicorn.loops.auto \
             --hidden-import=uvicorn.protocols.http.auto \
@@ -45,8 +49,45 @@ jobs:
             --hidden-import=uvicorn.lifespan.on \
             --hidden-import=aiosqlite \
             --hidden-import=sqlalchemy.dialects.sqlite \
+            --hidden-import=app.config \
+            --hidden-import=app.database \
+            --hidden-import=app.models.transaction \
+            --hidden-import=app.models.upload \
+            --hidden-import=app.models.merchant_rule \
+            --hidden-import=app.models.insights_cache \
+            --hidden-import=app.models.category \
+            --hidden-import=app.services.categorizer \
+            --hidden-import=app.services.insights \
+            --hidden-import=app.queries \
             web/app.py
         shell: bash
+
+      - name: Build sidecar (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --onefile --name ctf-sidecar --strip `
+            --paths=backend `
+            --paths=. `
+            "--add-data=web/static;static" `
+            --hidden-import=uvicorn.logging `
+            --hidden-import=uvicorn.loops.auto `
+            --hidden-import=uvicorn.protocols.http.auto `
+            --hidden-import=uvicorn.protocols.websockets.auto `
+            --hidden-import=uvicorn.lifespan.on `
+            --hidden-import=aiosqlite `
+            --hidden-import=sqlalchemy.dialects.sqlite `
+            --hidden-import=app.config `
+            --hidden-import=app.database `
+            --hidden-import=app.models.transaction `
+            --hidden-import=app.models.upload `
+            --hidden-import=app.models.merchant_rule `
+            --hidden-import=app.models.insights_cache `
+            --hidden-import=app.models.category `
+            --hidden-import=app.services.categorizer `
+            --hidden-import=app.services.insights `
+            --hidden-import=app.queries `
+            web/app.py
+        shell: pwsh
 
       - name: Rename for Tauri
         run: |

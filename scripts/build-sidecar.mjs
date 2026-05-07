@@ -35,7 +35,23 @@ const hiddenImports = [
   'uvicorn.lifespan.on',
   'aiosqlite',
   'sqlalchemy.dialects.sqlite',
+  // backend app modules (found via --paths backend)
+  'app.config',
+  'app.database',
+  'app.models.transaction',
+  'app.models.upload',
+  'app.models.merchant_rule',
+  'app.models.insights_cache',
+  'app.models.category',
+  'app.services.categorizer',
+  'app.services.insights',
+  'app.queries',
 ].map(m => `--hidden-import=${m}`).join(' ');
+
+const staticSrc = resolve(root, 'web', 'static');
+const addData = process.platform === 'win32'
+  ? `--add-data=${staticSrc};static`
+  : `--add-data=${staticSrc}:static`;
 
 const cmd = [
   venvPython,
@@ -43,6 +59,10 @@ const cmd = [
   '--onefile',
   '--name', 'ctf-sidecar',
   '--strip',
+  // Include backend/ in the analysis path so app.* modules are found
+  `--paths=${resolve(root, 'backend')}`,
+  `--paths=${resolve(root)}`,
+  addData,
   hiddenImports,
   resolve(root, 'web', 'app.py'),
 ].join(' ');
