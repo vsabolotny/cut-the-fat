@@ -7,6 +7,8 @@ logging.getLogger("sqlalchemy.pool").setLevel(logging.CRITICAL)
 warnings.filterwarnings("ignore", message=".*non-checked-in connection.*")
 warnings.filterwarnings("ignore", message=".*garbage collector.*")
 
+import json
+
 import web  # noqa: ensure sys.path setup
 
 from pathlib import Path
@@ -143,6 +145,22 @@ async def api_categories():
     from app.queries import get_all_categories
     return await get_all_categories()
 
+@app.get("/api/status")
+async def api_status():
+    """Return local status flags for the UI (no side effects)."""
+    from app.config import get_settings
+
+    settings = get_settings()
+    anthropic_enabled = bool((settings.anthropic_api_key or "").strip())
+    return {
+        "anthropic_enabled": anthropic_enabled,
+        "database": "sqlite",
+        "notes": [
+            "Wenn kein ANTHROPIC_API_KEY gesetzt ist, werden keine Daten an Anthropic gesendet.",
+            "Daten/Regeln werden lokal in SQLite gespeichert (backend/cut_the_fat.db).",
+        ],
+    }
+
 
 @app.post("/api/recategorize")
 async def api_recategorize(body: dict):
@@ -172,6 +190,63 @@ async def upload_file(file: UploadFile = File(...)):
         dest.unlink(missing_ok=True)
 
     return result
+
+
+@app.get("/api/anthropic/insights-payload")
+async def api_anthropic_insights_payload():
+    """Return the exact payload that would be sent to Anthropic for insights."""
+    from app.database import AsyncSessionLocal
+    from app.services.insights import INSIGHTS_SYSTEM, _get_aggregated_data  # type: ignore
+
+    async with AsyncSessionLocal() as db:
+        data = await _get_aggregated_data(db)
+
+    data_json = json.dumps(data, sort_keys=True, ensure_ascii=False, indent=2)
+    return {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "system": INSIGHTS_SYSTEM,
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Here is my spending data for the last 6 months:\n\n"
+                    f"{data_json}\n\n"
+                    "Generate 5 specific cost-cutting insights."
+                ),
+            }
+        ],
+        "notes": [
+            "Wenn ANTHROPIC_API_KEY gesetzt ist, wird dieser Payload an Anthropic gesendet.",
+            "Wenn kein Key gesetzt ist, nutzt das System eine regelbasierte Fallback-Generierung.",
+        ],
+    }
+
+
+@app.get("/api/anthropic/learn-payload")
+async def api_anthropic_learn_payload():
+    """Return the exact payload that would be sent to Anthropic for AI category suggestions (learn)."""
+    from app.queries import get_uncategorized_merchants, get_all_categories
+    from app.services.categorizer import _SYSTEM_PROMPT_TEMPLATE  # type: ignore
+
+    merchants = await get_uncategorized_merchants()
+    categories = await get_all_categories()
+    merchant_keys = [m["merchant"] for m in merchants]
+
+    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(categories=", ".join(categories))
+    merchant_list = "\n".join(f"- {m}" for m in merchant_keys)
+    user_content = f"Kategorisiere diese Händler:\n{merchant_list}"
+
+    return {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 4096,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_content}],
+        "notes": [
+            "Dieser Payload wird beim 'Kategorien lernen' (KI-Vorschläge) an Anthropic gesendet, sofern ANTHROPIC_API_KEY gesetzt ist.",
+            "Bekannte Händlerregeln werden ohne API-Aufruf angewendet; hier siehst du nur den Learn-Suggestions-Call.",
+        ],
+    }
 
 
 # Static files (CSS, JS) — mounted last so routes take priority

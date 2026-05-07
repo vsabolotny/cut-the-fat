@@ -36,6 +36,9 @@ const COLORS = [
 let chartInstances = [];
 let chartCounter = 0;
 
+// Global status
+let globalStatus = { anthropic_enabled: null };
+
 function destroyCharts() {
   chartInstances.forEach(c => c.destroy());
   chartInstances = [];
@@ -426,6 +429,88 @@ function renderReportPreview(msg) {
   primary.appendChild(div);
 }
 
+// ── Anthropic transparency banner + payload modal ──
+
+function renderAnthropicNotice(msg) {
+  // Show as a banner in the right panel, above other content.
+  showSection(primary);
+  const div = document.createElement('div');
+  div.className = 'anthropic-notice';
+  const enabled = (msg.enabled === true) || (globalStatus.anthropic_enabled === true);
+  const stateLabel = enabled ? 'AKTIV' : 'INAKTIV';
+  const stateClass = enabled ? 'on' : 'off';
+  div.innerHTML = `
+    <div class="anthropic-notice-row">
+      <div class="anthropic-notice-title">
+        <span class="anthropic-icon">⚠</span>
+        <span>${esc(msg.title || 'Sendet Daten an Anthropic')}</span>
+        <span class="anthropic-pill ${stateClass}">${stateLabel}</span>
+      </div>
+      <button class="anthropic-details-btn" title="Payload anzeigen">!</button>
+    </div>
+    <div class="anthropic-notice-text">${esc(msg.text || '')}</div>
+  `;
+
+  div.querySelector('.anthropic-details-btn').addEventListener('click', async () => {
+    const url = msg.payload_url;
+    if (!url) return;
+    try {
+      const resp = await fetch(url);
+      const payload = await resp.json();
+      openPayloadModal(payload, msg.title || 'Anthropic Payload');
+    } catch (e) {
+      openPayloadModal({ error: String(e && e.message ? e.message : e) }, 'Anthropic Payload (Fehler)');
+    }
+  });
+
+  // Insert at top (before existing cards) to keep it prominent.
+  primary.insertBefore(div, primary.firstChild);
+}
+
+function openPayloadModal(payload, title) {
+  const existing = document.getElementById('payload-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'payload-modal';
+  modal.className = 'payload-modal-overlay';
+
+  const pretty = typeof payload === 'string'
+    ? payload
+    : JSON.stringify(payload, null, 2);
+
+  modal.innerHTML = `
+    <div class="payload-modal">
+      <div class="payload-modal-header">
+        <div class="payload-modal-title">${esc(title || 'Payload')}</div>
+        <button class="payload-modal-close" title="Schließen">×</button>
+      </div>
+      <pre class="payload-modal-pre">${esc(pretty)}</pre>
+      <div class="payload-modal-actions">
+        <button class="action-btn payload-copy">Copy</button>
+        <button class="action-btn payload-close" style="border-color:var(--accent);color:var(--accent);">Schließen</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  modal.querySelector('.payload-modal-close').addEventListener('click', close);
+  modal.querySelector('.payload-close').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  modal.querySelector('.payload-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(pretty);
+      modal.querySelector('.payload-copy').classList.add('selected');
+      modal.querySelector('.payload-copy').textContent = '✓ Copied';
+    } catch (e) {
+      // ignore
+    }
+  });
+}
+
 // ── Server message dispatch ──
 
 let contentCleared = false;
@@ -472,6 +557,11 @@ function handleServerMessage(data) {
     case 'report_preview':
       if (!contentCleared) { clearContent(); contentCleared = true; }
       renderReportPreview(data);
+      break;
+
+    case 'anthropic_notice':
+      // Do not clear the entire content; show as prominent banner.
+      renderAnthropicNotice(data);
       break;
 
     case 'actions':
@@ -569,4 +659,13 @@ dropZone.addEventListener('drop', e => {
 });
 
 // ── Init ──
-connectWS();
+async function initStatus() {
+  try {
+    const resp = await fetch('/api/status');
+    globalStatus = await resp.json();
+  } catch (_) {
+    globalStatus = { anthropic_enabled: null };
+  }
+}
+
+initStatus().finally(() => connectWS());
