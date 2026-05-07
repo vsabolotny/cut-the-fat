@@ -1,8 +1,6 @@
 /* ── Cut the Fat — Split-View (WebSocket-Backend) ── */
 
-// ── Tauri detection & backend URL resolution ──
-const IS_TAURI = Boolean(window.__TAURI_INTERNALS__);
-let BACKEND_BASE = '';
+// window.IS_TAURI, window.BACKEND_BASE, apiUrl are defined by topbar.js (loaded before this script)
 let WS_BASE = '';
 
 const chatMessages = document.getElementById('chat-messages');
@@ -57,9 +55,9 @@ let heartbeatTimer = null;
 
 function connectWS() {
   // In Tauri mode, resolve backend port via IPC first
-  if (IS_TAURI && !BACKEND_BASE) {
+  if (window.IS_TAURI && !window.BACKEND_BASE) {
     window.__TAURI_INTERNALS__.invoke('get_backend_port').then(port => {
-      BACKEND_BASE = `http://localhost:${port}`;
+      window.BACKEND_BASE = `http://localhost:${port}`;
       WS_BASE = `ws://localhost:${port}`;
       connectWS();  // retry with resolved URLs
     }).catch(err => {
@@ -476,7 +474,7 @@ function renderAnthropicNotice(msg) {
     const url = msg.payload_url;
     if (!url) return;
     try {
-      const resp = await fetch(apiUrl(url));
+      const resp = await fetch(window.apiUrl(url));
       const payload = await resp.json();
       openPayloadModal(payload, msg.title || 'Anthropic Payload');
     } catch (e) {
@@ -645,7 +643,7 @@ fileInput.addEventListener('change', async () => {
   formData.append('file', file);
 
   try {
-    const resp = await fetch(apiUrl('/api/upload'), { method: 'POST', body: formData });
+    const resp = await fetch(window.apiUrl('/api/upload'), { method: 'POST', body: formData });
     const result = await resp.json();
     removeProgress();
 
@@ -682,210 +680,50 @@ dropZone.addEventListener('drop', e => {
 // ── Init ──
 async function initStatus() {
   try {
-    const statusUrl = BACKEND_BASE ? `${BACKEND_BASE}/api/status` : '/api/status';
-    const resp = await fetch(statusUrl);
+    const resp = await fetch(window.apiUrl('/api/status'));
     globalStatus = await resp.json();
   } catch (_) {
     globalStatus = { anthropic_enabled: null };
   }
 }
 
-// Helper: resolve API URL (works in both standalone and Tauri mode)
-function apiUrl(path) {
-  return BACKEND_BASE ? `${BACKEND_BASE}${path}` : path;
-}
+// ── Settings saved: refresh status (topbar.js fires 'settingsSaved') ──
+document.addEventListener('settingsSaved', async () => {
+  globalStatus = await fetch(window.window.apiUrl('/api/status')).then(r => r.json());
+});
 
-// ── Settings Drawer ──
-(function initSettings() {
-  const btn = document.getElementById('settings-btn');
-  const drawer = document.getElementById('settings-drawer');
-  const overlay = document.getElementById('settings-overlay');
-  if (!btn || !drawer) return;
-
-  function openDrawer() {
-    drawer.classList.add('open');
-    overlay.classList.remove('hidden');
-    drawer.setAttribute('aria-hidden', 'false');
-    loadSettings();
-  }
-  function closeDrawer() {
-    drawer.classList.remove('open');
-    overlay.classList.add('hidden');
-    drawer.setAttribute('aria-hidden', 'true');
-  }
-
-  btn.addEventListener('click', openDrawer);
-  overlay.addEventListener('click', closeDrawer);
-  document.getElementById('settings-close').addEventListener('click', closeDrawer);
-  document.getElementById('settings-cancel').addEventListener('click', closeDrawer);
-
-  // Eye-toggle buttons
-  drawer.querySelectorAll('.settings-eye-btn').forEach(eyeBtn => {
-    eyeBtn.addEventListener('click', () => {
-      const target = document.getElementById(eyeBtn.dataset.target);
-      if (!target) return;
-      target.type = target.type === 'password' ? 'text' : 'password';
+// ── Bug Report submit (topbar.js fires 'bugReportSubmit' with detail) ──
+document.addEventListener('bugReportSubmit', async (e) => {
+  const { title, description, steps } = e.detail;
+  const msgs = Array.from(chatMessages.querySelectorAll('.msg-bubble'))
+    .slice(-50).map(el => el.textContent.trim()).join('\n');
+  try {
+    const resp = await fetch(window.window.apiUrl('/api/bugreport'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title || 'Bug Report aus Desktop-App',
+        description, steps, chat_log: msgs,
+      }),
     });
-  });
-
-  // Bug report button in settings (shown in Tauri mode)
-  const bugRow = document.getElementById('s-bug-report-row');
-  if (IS_TAURI && bugRow) bugRow.style.display = '';
-
-  async function loadSettings() {
-    try {
-      const data = await fetch(apiUrl('/api/settings')).then(r => r.json());
-
-      // Profile
-      const profile = data.profile || {};
-      document.getElementById('s-name').value = profile.name || '';
-      document.getElementById('s-email').value = profile.email || '';
-
-      // Keys — show masked value as placeholder, leave input blank
-      const anthPill = document.getElementById('s-anthropic-pill');
-      if (data.anthropic_key_set) {
-        anthPill.textContent = data.anthropic_key_masked;
-        anthPill.className = 'settings-key-pill on';
-      } else {
-        anthPill.textContent = 'nicht gesetzt';
-        anthPill.className = 'settings-key-pill off';
-      }
-      document.getElementById('s-anthropic-key').value = '';
-      document.getElementById('s-anthropic-key').placeholder = data.anthropic_key_set
-        ? data.anthropic_key_masked : 'sk-ant-...';
-
-      const ghPill = document.getElementById('s-github-pill');
-      if (data.github_token_set) {
-        ghPill.textContent = data.github_token_masked;
-        ghPill.className = 'settings-key-pill on';
-      } else {
-        ghPill.textContent = 'nicht gesetzt';
-        ghPill.className = 'settings-key-pill off';
-      }
-      document.getElementById('s-github-token').value = '';
-      document.getElementById('s-github-token').placeholder = data.github_token_set
-        ? data.github_token_masked : 'ghp_...';
-
-      // DB path
-      if (data.db_path) {
-        const el = document.getElementById('s-db-path');
-        if (el) el.textContent = data.db_path;
-      }
-    } catch (_) {}
-  }
-
-  document.getElementById('settings-save').addEventListener('click', async () => {
-    const saveBtn = document.getElementById('settings-save');
-    saveBtn.textContent = '…';
-    saveBtn.disabled = true;
-
-    const body = {
-      profile: {
-        name: document.getElementById('s-name').value.trim(),
-        email: document.getElementById('s-email').value.trim(),
-      },
-    };
-
-    const anthKey = document.getElementById('s-anthropic-key').value.trim();
-    if (anthKey) body.anthropic_api_key = anthKey;
-
-    const ghToken = document.getElementById('s-github-token').value.trim();
-    if (ghToken) body.github_token = ghToken;
-
-    try {
-      await fetch(apiUrl('/api/settings'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      // Refresh global status
-      globalStatus = await fetch(apiUrl('/api/status')).then(r => r.json());
-      closeDrawer();
-    } catch (err) {
-      alert(`Fehler beim Speichern: ${err.message}`);
-    } finally {
-      saveBtn.textContent = 'Speichern';
-      saveBtn.disabled = false;
+    const result = await resp.json();
+    if (result.url) {
+      addBot(`✅ Bug Report erstellt: <a href="${result.url}" target="_blank">#${result.number}</a>`);
+    } else {
+      addBot(`⚠️ ${esc(result.error || 'Unbekannter Fehler')}`);
     }
-  });
-})();
-
-// ── Bug Report (Tauri mode only, triggered from Settings Drawer) ──
-(function initBugReport() {
-  const btn = document.getElementById('bug-report-btn');
-  const modal = document.getElementById('bug-modal');
-  if (!modal) return;
-
-  function openBugModal() {
-    // Close settings drawer first
-    const drawer = document.getElementById('settings-drawer');
-    const overlay = document.getElementById('settings-overlay');
-    if (drawer) drawer.classList.remove('open');
-    if (overlay) overlay.classList.add('hidden');
-    modal.style.display = 'flex';
-    document.getElementById('bug-title').focus();
+  } catch (err) {
+    addBot(`❌ Bug Report fehlgeschlagen: ${esc(err.message)}`);
   }
-
-  if (btn) btn.addEventListener('click', openBugModal);
-
-  document.getElementById('bug-cancel').addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-
-  modal.addEventListener('click', e => {
-    if (e.target === modal) modal.style.display = 'none';
-  });
-
-  document.getElementById('bug-submit').addEventListener('click', async () => {
-    const title = document.getElementById('bug-title').value.trim();
-    const desc = document.getElementById('bug-desc').value.trim();
-    const steps = document.getElementById('bug-steps').value.trim();
-
-    if (!title && !desc) return;
-
-    // Collect last 50 chat messages as context
-    const msgs = Array.from(chatMessages.querySelectorAll('.msg-bubble'))
-      .slice(-50)
-      .map(el => el.textContent.trim())
-      .join('\n');
-
-    modal.style.display = 'none';
-
-    try {
-      const resp = await fetch(apiUrl('/api/bugreport'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title || 'Bug Report aus Desktop-App',
-          description: desc,
-          steps: steps,
-          chat_log: msgs,
-        }),
-      });
-      const result = await resp.json();
-      if (result.url) {
-        addBot(`✅ Bug Report erstellt: <a href="${result.url}" target="_blank">#${result.number}</a>`);
-      } else {
-        addBot(`⚠️ ${esc(result.error || 'Unbekannter Fehler')}`);
-      }
-    } catch (err) {
-      addBot(`❌ Bug Report fehlgeschlagen: ${esc(err.message)}`);
-    }
-
-    // Reset form
-    document.getElementById('bug-title').value = '';
-    document.getElementById('bug-desc').value = '';
-    document.getElementById('bug-steps').value = '';
-  });
-})();
+});
 
 // ── Start ──
 async function init() {
-  if (IS_TAURI) {
+  if (window.IS_TAURI) {
     // Resolve backend port first
     try {
       const port = await window.__TAURI_INTERNALS__.invoke('get_backend_port');
-      BACKEND_BASE = `http://localhost:${port}`;
+      window.BACKEND_BASE = `http://localhost:${port}`;
       WS_BASE = `ws://localhost:${port}`;
     } catch (err) {
       console.error('Tauri backend port failed:', err);
