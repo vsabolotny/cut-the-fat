@@ -16,11 +16,17 @@ jobs:
         include:
           - os: ubuntu-22.04
             triple: x86_64-unknown-linux-gnu
+            add_data: "web/static:static"
+            strip: "--strip"
           - os: macos-latest
             triple: aarch64-apple-darwin
+            add_data: "web/static:static"
+            strip: "--strip"
           - os: windows-latest
             triple: x86_64-pc-windows-msvc
             ext: .exe
+            add_data: "web/static;static"
+            strip: ""
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -35,64 +41,39 @@ jobs:
           pip install pyinstaller
           pip install -r backend/requirements.txt
 
-      - name: Build sidecar (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          pyinstaller --onefile --name ctf-sidecar --strip \
-            --paths=backend \
-            --paths=. \
-            --add-data=web/static:static \
-            --hidden-import=uvicorn.logging \
-            --hidden-import=uvicorn.loops.auto \
-            --hidden-import=uvicorn.protocols.http.auto \
-            --hidden-import=uvicorn.protocols.websockets.auto \
-            --hidden-import=uvicorn.lifespan.on \
-            --hidden-import=aiosqlite \
-            --hidden-import=sqlalchemy.dialects.sqlite \
-            --hidden-import=app.config \
-            --hidden-import=app.database \
-            --hidden-import=app.models.transaction \
-            --hidden-import=app.models.upload \
-            --hidden-import=app.models.merchant_rule \
-            --hidden-import=app.models.insights_cache \
-            --hidden-import=app.models.category \
-            --hidden-import=app.services.categorizer \
-            --hidden-import=app.services.insights \
-            --hidden-import=app.queries \
-            web/app.py
-        shell: bash
-
-      - name: Build sidecar (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          pyinstaller --onefile --name ctf-sidecar --strip `
-            --paths=backend `
-            --paths=. `
-            "--add-data=web/static;static" `
-            --hidden-import=uvicorn.logging `
-            --hidden-import=uvicorn.loops.auto `
-            --hidden-import=uvicorn.protocols.http.auto `
-            --hidden-import=uvicorn.protocols.websockets.auto `
-            --hidden-import=uvicorn.lifespan.on `
-            --hidden-import=aiosqlite `
-            --hidden-import=sqlalchemy.dialects.sqlite `
-            --hidden-import=app.config `
-            --hidden-import=app.database `
-            --hidden-import=app.models.transaction `
-            --hidden-import=app.models.upload `
-            --hidden-import=app.models.merchant_rule `
-            --hidden-import=app.models.insights_cache `
-            --hidden-import=app.models.category `
-            --hidden-import=app.services.categorizer `
-            --hidden-import=app.services.insights `
-            --hidden-import=app.queries `
-            web/app.py
-        shell: pwsh
+      - name: Build sidecar
+        run: >-
+          python -m PyInstaller
+          --onefile
+          --name ctf-sidecar
+          ${{ matrix.strip }}
+          --paths=backend
+          --paths=.
+          --add-data=${{ matrix.add_data }}
+          --hidden-import=uvicorn.logging
+          --hidden-import=uvicorn.loops.auto
+          --hidden-import=uvicorn.protocols.http.auto
+          --hidden-import=uvicorn.protocols.websockets.auto
+          --hidden-import=uvicorn.lifespan.on
+          --hidden-import=aiosqlite
+          --hidden-import=sqlalchemy.dialects.sqlite
+          --hidden-import=app.config
+          --hidden-import=app.database
+          --hidden-import=app.models.transaction
+          --hidden-import=app.models.upload
+          --hidden-import=app.models.merchant_rule
+          --hidden-import=app.models.insights_cache
+          --hidden-import=app.models.category
+          --hidden-import=app.services.categorizer
+          --hidden-import=app.services.insights
+          --hidden-import=app.queries
+          web/app.py
 
       - name: Rename for Tauri
         run: |
           mkdir -p src-tauri/binaries
           cp dist/ctf-sidecar${{ matrix.ext }} src-tauri/binaries/ctf-sidecar-${{ matrix.triple }}${{ matrix.ext }}
+        shell: bash
 
       - uses: actions/upload-artifact@v4
         with:
