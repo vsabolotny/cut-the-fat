@@ -27,10 +27,60 @@ body {
   line-height: 1.5;
 }
 
-/* ── Split Layout ── */
+/* ── App shell: column layout ── */
 #app {
   display: flex;
+  flex-direction: column;
   height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Global Top Bar ── */
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+#topbar-left .logo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+#topbar-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.topbar-nav-link {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.topbar-nav-link:hover,
+.topbar-nav-link.active {
+  background: var(--surface2);
+  color: var(--text);
+}
+#topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Main area: side-by-side panels below topbar ── */
+#main-area {
+  display: flex;
+  flex: 1;
   overflow: hidden;
 }
 
@@ -44,20 +94,8 @@ body {
   background: var(--surface);
 }
 
-.panel-header {
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.nav-link {
-  font-size: 12px;
-  color: var(--accent-hover);
-  text-decoration: none;
-}
-.nav-link:hover { text-decoration: underline; }
+.panel-header { display: none; }
+
 .logo {
   font-size: 16px;
   font-weight: 700;
@@ -68,6 +106,12 @@ body {
   align-items: center;
   gap: 6px;
 }
+.nav-link {
+  font-size: 12px;
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+.nav-link:hover { text-decoration: underline; }
 .icon-btn {
   display: flex;
   align-items: center;

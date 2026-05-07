@@ -4,41 +4,19 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+}
+
+/* Content area below topbar */
+#txn-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 20px;
 }
-
-/* Header */
-.txn-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.header-left .logo {
-  text-decoration: none;
-  color: var(--text);
-}
-.page-title {
-  font-size: 14px;
-  color: var(--text-dim);
-  padding-left: 16px;
-  border-left: 1px solid var(--border);
-}
-.nav-link {
-  font-size: 13px;
-  color: var(--accent-hover);
-  text-decoration: none;
-}
-.nav-link:hover { text-decoration: underline; }
 
 /* Filter Bar */
 .filter-bar {
