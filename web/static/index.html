@@ -15,7 +15,12 @@
     <aside id="chat-panel">
       <div class="panel-header">
         <div class="logo">&#9986; Cut the Fat</div>
-        <a href="/transactions" class="nav-link">Transaktionen &#8594;</a>
+        <div class="header-actions">
+          <a href="/transactions" class="nav-link">Transaktionen &#8594;</a>
+          <button id="settings-btn" class="icon-btn" title="Einstellungen">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+        </div>
       </div>
 
       <div id="chat-messages" role="log" aria-live="polite"></div>
@@ -80,33 +85,94 @@
       </div>
     </main>
 
-    <!-- Settings Button (immer sichtbar) -->
-    <button id="settings-btn" title="Einstellungen" style="position:fixed; bottom:18px; left:18px; width:44px; height:44px; border-radius:50%; border:1px solid #2e3348; background:#1a1d27; color:#8b8fa8; font-size:20px; cursor:pointer; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.4);">⚙</button>
-
-    <!-- Settings Modal -->
-    <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center;">
-      <div style="background:#1a1d27; border:1px solid #2e3348; border-radius:12px; padding:24px; width:440px; max-width:90vw;">
-        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">⚙ Einstellungen</h3>
-        <label style="display:block; font-size:12px; color:#8b8fa8; margin-bottom:6px;">Anthropic API Key</label>
-        <input id="settings-apikey" type="password" placeholder="sk-ant-..." style="width:100%; padding:8px 12px; margin-bottom:6px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; box-sizing:border-box;">
-        <div id="settings-apikey-status" style="font-size:11px; color:#8b8fa8; margin-bottom:14px;"></div>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
-          <button id="settings-cancel" style="padding:6px 16px; border-radius:16px; border:1px solid #2e3348; background:#242836; color:#8b8fa8; font-size:12px; cursor:pointer;">Abbrechen</button>
-          <button id="settings-save" style="padding:6px 16px; border-radius:16px; border:1px solid #6366f1; background:rgba(99,102,241,0.15); color:#6366f1; font-size:12px; cursor:pointer;">Speichern</button>
-        </div>
+    <!-- Settings Drawer -->
+    <div id="settings-overlay" class="settings-overlay hidden"></div>
+    <aside id="settings-drawer" class="settings-drawer" aria-hidden="true">
+      <div class="settings-drawer-header">
+        <span class="settings-drawer-title">Einstellungen</span>
+        <button id="settings-close" class="icon-btn" title="Schließen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-    </div>
 
-    <!-- Bug Report Button (nur in Tauri Desktop-App sichtbar) -->
-    <button id="bug-report-btn" title="Bug melden" style="display:none; position:fixed; bottom:18px; right:18px; width:44px; height:44px; border-radius:50%; border:1px solid #2e3348; background:#1a1d27; color:#f97316; font-size:20px; cursor:pointer; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.4);">🐛</button>
+      <div class="settings-drawer-body">
+
+        <!-- Profil -->
+        <section class="settings-section">
+          <div class="settings-section-title">Profil</div>
+          <div class="settings-field">
+            <label class="settings-label">Name</label>
+            <input id="s-name" type="text" class="settings-input" placeholder="Paul Wilke">
+          </div>
+          <div class="settings-field">
+            <label class="settings-label">E-Mail</label>
+            <input id="s-email" type="email" class="settings-input" placeholder="paul@beispiel.de">
+          </div>
+        </section>
+
+        <!-- API Keys -->
+        <section class="settings-section">
+          <div class="settings-section-title">API Keys</div>
+
+          <div class="settings-field">
+            <label class="settings-label">Anthropic API Key
+              <span id="s-anthropic-pill" class="settings-key-pill off">nicht gesetzt</span>
+            </label>
+            <div class="settings-input-row">
+              <input id="s-anthropic-key" type="password" class="settings-input" placeholder="sk-ant-...">
+              <button class="settings-eye-btn" data-target="s-anthropic-key" title="Anzeigen/Verstecken">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="settings-hint">Wird für KI-Kategorisierung und Sparempfehlungen benötigt. Gespeichert in <code>.env</code>.</div>
+          </div>
+
+          <div class="settings-field">
+            <label class="settings-label">GitHub Token
+              <span id="s-github-pill" class="settings-key-pill off">nicht gesetzt</span>
+            </label>
+            <div class="settings-input-row">
+              <input id="s-github-token" type="password" class="settings-input" placeholder="ghp_...">
+              <button class="settings-eye-btn" data-target="s-github-token" title="Anzeigen/Verstecken">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="settings-hint">Optional. Für Bug-Reports aus der Desktop-App. Gespeichert in <code>.env</code>.</div>
+          </div>
+        </section>
+
+        <!-- App -->
+        <section class="settings-section">
+          <div class="settings-section-title">App</div>
+          <div class="settings-field">
+            <label class="settings-label">Datenbank</label>
+            <div class="settings-info" id="s-db-path">backend/cut_the_fat.db</div>
+          </div>
+          <div class="settings-field">
+            <label class="settings-label">Version</label>
+            <div class="settings-info">0.1.0</div>
+          </div>
+          <div id="s-bug-report-row" class="settings-field" style="display:none">
+            <label class="settings-label">Bug melden</label>
+            <button id="bug-report-btn" class="settings-action-btn">&#128027; Bug Report erstellen</button>
+          </div>
+        </section>
+
+      </div>
+
+      <div class="settings-drawer-footer">
+        <button id="settings-cancel" class="settings-btn-secondary">Abbrechen</button>
+        <button id="settings-save" class="settings-btn-primary">Speichern</button>
+      </div>
+    </aside>
 
     <!-- Bug Report Modal -->
-    <div id="bug-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center;">
+    <div id="bug-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; justify-content:center; align-items:center;">
       <div style="background:#1a1d27; border:1px solid #2e3348; border-radius:12px; padding:24px; width:420px; max-width:90vw;">
-        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">🐛 Bug melden</h3>
-        <input id="bug-title" type="text" placeholder="Kurzbeschreibung..." style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px;">
-        <textarea id="bug-desc" placeholder="Was ist passiert?" rows="3" style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical;"></textarea>
-        <textarea id="bug-steps" placeholder="Schritte zur Reproduktion (optional)" rows="2" style="width:100%; padding:8px 12px; margin-bottom:14px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical;"></textarea>
+        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">&#128027; Bug melden</h3>
+        <input id="bug-title" type="text" placeholder="Kurzbeschreibung..." style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; box-sizing:border-box;">
+        <textarea id="bug-desc" placeholder="Was ist passiert?" rows="3" style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical; box-sizing:border-box;"></textarea>
+        <textarea id="bug-steps" placeholder="Schritte zur Reproduktion (optional)" rows="2" style="width:100%; padding:8px 12px; margin-bottom:14px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical; box-sizing:border-box;"></textarea>
         <div style="display:flex; gap:8px; justify-content:flex-end;">
           <button id="bug-cancel" style="padding:6px 16px; border-radius:16px; border:1px solid #2e3348; background:#242836; color:#8b8fa8; font-size:12px; cursor:pointer;">Abbrechen</button>
           <button id="bug-submit" style="padding:6px 16px; border-radius:16px; border:1px solid #6366f1; background:rgba(99,102,241,0.15); color:#6366f1; font-size:12px; cursor:pointer;">Senden</button>

@@ -58,8 +58,7 @@ let heartbeatTimer = null;
 function connectWS() {
   // In Tauri mode, resolve backend port via IPC first
   if (IS_TAURI && !BACKEND_BASE) {
-    const { invoke } = window.__TAURI__.core;
-    invoke('get_backend_port').then(port => {
+    window.__TAURI_INTERNALS__.invoke('get_backend_port').then(port => {
       BACKEND_BASE = `http://localhost:${port}`;
       WS_BASE = `ws://localhost:${port}`;
       connectWS();  // retry with resolved URLs
@@ -696,57 +695,114 @@ function apiUrl(path) {
   return BACKEND_BASE ? `${BACKEND_BASE}${path}` : path;
 }
 
-// ── Settings (API key) ──
+// ── Settings Drawer ──
 (function initSettings() {
   const btn = document.getElementById('settings-btn');
-  const modal = document.getElementById('settings-modal');
-  if (!btn || !modal) return;
+  const drawer = document.getElementById('settings-drawer');
+  const overlay = document.getElementById('settings-overlay');
+  if (!btn || !drawer) return;
 
-  async function loadCurrentKey() {
+  function openDrawer() {
+    drawer.classList.add('open');
+    overlay.classList.remove('hidden');
+    drawer.setAttribute('aria-hidden', 'false');
+    loadSettings();
+  }
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    overlay.classList.add('hidden');
+    drawer.setAttribute('aria-hidden', 'true');
+  }
+
+  btn.addEventListener('click', openDrawer);
+  overlay.addEventListener('click', closeDrawer);
+  document.getElementById('settings-close').addEventListener('click', closeDrawer);
+  document.getElementById('settings-cancel').addEventListener('click', closeDrawer);
+
+  // Eye-toggle buttons
+  drawer.querySelectorAll('.settings-eye-btn').forEach(eyeBtn => {
+    eyeBtn.addEventListener('click', () => {
+      const target = document.getElementById(eyeBtn.dataset.target);
+      if (!target) return;
+      target.type = target.type === 'password' ? 'text' : 'password';
+    });
+  });
+
+  // Bug report button in settings (shown in Tauri mode)
+  const bugRow = document.getElementById('s-bug-report-row');
+  if (IS_TAURI && bugRow) bugRow.style.display = '';
+
+  async function loadSettings() {
     try {
       const data = await fetch(apiUrl('/api/settings')).then(r => r.json());
-      const status = document.getElementById('settings-apikey-status');
+
+      // Profile
+      const profile = data.profile || {};
+      document.getElementById('s-name').value = profile.name || '';
+      document.getElementById('s-email').value = profile.email || '';
+
+      // Keys — show masked value as placeholder, leave input blank
+      const anthPill = document.getElementById('s-anthropic-pill');
       if (data.anthropic_key_set) {
-        status.textContent = `Aktuell gesetzt: ${data.anthropic_key_masked}`;
-        status.style.color = '#86efac';
+        anthPill.textContent = data.anthropic_key_masked;
+        anthPill.className = 'settings-key-pill on';
       } else {
-        status.textContent = 'Kein Key gesetzt — KI-Features nutzen Fallback.';
-        status.style.color = '#8b8fa8';
+        anthPill.textContent = 'nicht gesetzt';
+        anthPill.className = 'settings-key-pill off';
+      }
+      document.getElementById('s-anthropic-key').value = '';
+      document.getElementById('s-anthropic-key').placeholder = data.anthropic_key_set
+        ? data.anthropic_key_masked : 'sk-ant-...';
+
+      const ghPill = document.getElementById('s-github-pill');
+      if (data.github_token_set) {
+        ghPill.textContent = data.github_token_masked;
+        ghPill.className = 'settings-key-pill on';
+      } else {
+        ghPill.textContent = 'nicht gesetzt';
+        ghPill.className = 'settings-key-pill off';
+      }
+      document.getElementById('s-github-token').value = '';
+      document.getElementById('s-github-token').placeholder = data.github_token_set
+        ? data.github_token_masked : 'ghp_...';
+
+      // DB path
+      if (data.db_path) {
+        const el = document.getElementById('s-db-path');
+        if (el) el.textContent = data.db_path;
       }
     } catch (_) {}
   }
 
-  btn.addEventListener('click', async () => {
-    document.getElementById('settings-apikey').value = '';
-    await loadCurrentKey();
-    modal.style.display = 'flex';
-    document.getElementById('settings-apikey').focus();
-  });
-
-  document.getElementById('settings-cancel').addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
-
   document.getElementById('settings-save').addEventListener('click', async () => {
-    const key = document.getElementById('settings-apikey').value.trim();
     const saveBtn = document.getElementById('settings-save');
     saveBtn.textContent = '…';
     saveBtn.disabled = true;
+
+    const body = {
+      profile: {
+        name: document.getElementById('s-name').value.trim(),
+        email: document.getElementById('s-email').value.trim(),
+      },
+    };
+
+    const anthKey = document.getElementById('s-anthropic-key').value.trim();
+    if (anthKey) body.anthropic_api_key = anthKey;
+
+    const ghToken = document.getElementById('s-github-token').value.trim();
+    if (ghToken) body.github_token = ghToken;
+
     try {
-      const result = await fetch(apiUrl('/api/settings'), {
+      await fetch(apiUrl('/api/settings'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ anthropic_api_key: key }),
-      }).then(r => r.json());
-      if (result.ok) {
-        modal.style.display = 'none';
-        // Refresh status in UI
-        const resp = await fetch(apiUrl('/api/status')).then(r => r.json());
-        globalStatus = resp;
-      }
+        body: JSON.stringify(body),
+      });
+      // Refresh global status
+      globalStatus = await fetch(apiUrl('/api/status')).then(r => r.json());
+      closeDrawer();
     } catch (err) {
-      document.getElementById('settings-apikey-status').textContent = `Fehler: ${err.message}`;
+      alert(`Fehler beim Speichern: ${err.message}`);
     } finally {
       saveBtn.textContent = 'Speichern';
       saveBtn.disabled = false;
@@ -754,19 +810,23 @@ function apiUrl(path) {
   });
 })();
 
-// ── Bug Report (Tauri mode only) ──
+// ── Bug Report (Tauri mode only, triggered from Settings Drawer) ──
 (function initBugReport() {
   const btn = document.getElementById('bug-report-btn');
   const modal = document.getElementById('bug-modal');
-  if (!btn || !modal) return;
+  if (!modal) return;
 
-  // Show button only in Tauri
-  if (IS_TAURI) btn.style.display = 'block';
-
-  btn.addEventListener('click', () => {
+  function openBugModal() {
+    // Close settings drawer first
+    const drawer = document.getElementById('settings-drawer');
+    const overlay = document.getElementById('settings-overlay');
+    if (drawer) drawer.classList.remove('open');
+    if (overlay) overlay.classList.add('hidden');
     modal.style.display = 'flex';
     document.getElementById('bug-title').focus();
-  });
+  }
+
+  if (btn) btn.addEventListener('click', openBugModal);
 
   document.getElementById('bug-cancel').addEventListener('click', () => {
     modal.style.display = 'none';
@@ -824,8 +884,7 @@ async function init() {
   if (IS_TAURI) {
     // Resolve backend port first
     try {
-      const { invoke } = window.__TAURI__.core;
-      const port = await invoke('get_backend_port');
+      const port = await window.__TAURI_INTERNALS__.invoke('get_backend_port');
       BACKEND_BASE = `http://localhost:${port}`;
       WS_BASE = `ws://localhost:${port}`;
     } catch (err) {

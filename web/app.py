@@ -285,48 +285,87 @@ async def api_bugreport(body: dict):
     return result
 
 
-# ── Settings (API key) ──
+# ── Settings (profile, API keys) ──
 
 _ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+_PROFILE_FILE = Path(__file__).resolve().parent.parent / ".ctf-profile.json"
+
+
+def _read_env() -> list[str]:
+    if _ENV_FILE.exists():
+        return _ENV_FILE.read_text(encoding="utf-8").splitlines()
+    return []
+
+
+def _write_env_key(lines: list[str], key_name: str, value: str) -> list[str]:
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key_name}=") or line.startswith(f"{key_name} ="):
+            lines[i] = f"{key_name}={value}"
+            return lines
+    lines.append(f"{key_name}={value}")
+    return lines
+
+
+def _mask(key: str) -> str:
+    if not key:
+        return ""
+    return ("*" * max(0, len(key) - 4) + key[-4:]) if len(key) > 4 else "*" * len(key)
 
 
 @app.get("/api/settings")
 async def api_settings_get():
-    """Return current settings (API key masked)."""
+    """Return current settings (keys masked, profile plain)."""
     from app.config import get_settings
+    import os, json as _json
     settings = get_settings()
-    key = settings.anthropic_api_key or ""
-    masked = ("*" * (len(key) - 4) + key[-4:]) if len(key) > 4 else ("*" * len(key))
-    return {"anthropic_key_set": bool(key), "anthropic_key_masked": masked}
+    anthropic_key = settings.anthropic_api_key or ""
+    github_token = os.environ.get("GITHUB_TOKEN", "")
+
+    profile = {}
+    if _PROFILE_FILE.exists():
+        try:
+            profile = _json.loads(_PROFILE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "anthropic_key_set": bool(anthropic_key),
+        "anthropic_key_masked": _mask(anthropic_key),
+        "github_token_set": bool(github_token),
+        "github_token_masked": _mask(github_token),
+        "profile": profile,
+        "db_path": str(Path(__file__).resolve().parent.parent / "backend" / "cut_the_fat.db"),
+    }
 
 
 @app.post("/api/settings")
 async def api_settings_set(body: dict):
-    """Save API key to .env and invalidate settings cache."""
+    """Save profile + env keys. Only updates fields present in the request."""
+    import json as _json
     from app.config import get_settings
-    key = (body.get("anthropic_api_key") or "").strip()
 
-    # Read existing .env or start fresh
-    lines = []
-    if _ENV_FILE.exists():
-        lines = _ENV_FILE.read_text(encoding="utf-8").splitlines()
+    lines = _read_env()
+    changed_env = False
 
-    # Replace or append ANTHROPIC_API_KEY line
-    found = False
-    for i, line in enumerate(lines):
-        if line.startswith("ANTHROPIC_API_KEY=") or line.startswith("ANTHROPIC_API_KEY ="):
-            lines[i] = f"ANTHROPIC_API_KEY={key}"
-            found = True
-            break
-    if not found:
-        lines.append(f"ANTHROPIC_API_KEY={key}")
+    if "anthropic_api_key" in body:
+        key = (body["anthropic_api_key"] or "").strip()
+        lines = _write_env_key(lines, "ANTHROPIC_API_KEY", key)
+        changed_env = True
 
-    _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if "github_token" in body:
+        token = (body["github_token"] or "").strip()
+        lines = _write_env_key(lines, "GITHUB_TOKEN", token)
+        changed_env = True
 
-    # Invalidate lru_cache so next call picks up the new value
-    get_settings.cache_clear()
+    if changed_env:
+        _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        get_settings.cache_clear()
 
-    return {"ok": True, "anthropic_key_set": bool(key)}
+    if "profile" in body:
+        profile = {k: str(v).strip() for k, v in (body["profile"] or {}).items() if v}
+        _PROFILE_FILE.write_text(_json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return {"ok": True}
 
 
 # Static files (CSS, JS) — mounted last so routes take priority
