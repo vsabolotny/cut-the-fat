@@ -76,6 +76,11 @@ async def transactions_page():
     return FileResponse(STATIC_DIR / "transactions.html")
 
 
+@app.get("/settings")
+async def settings_page():
+    return FileResponse(STATIC_DIR / "settings.html")
+
+
 @app.get("/api/transactions")
 async def api_transactions(
     date_from: str = None,

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Einstellungen — Cut the Fat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="settings-app">
+
+    <!-- Global Top Navigation Bar -->
+    <header id="topbar">
+      <div id="topbar-left">
+        <span class="logo">&#9986; Cut the Fat</span>
+      </div>
+      <nav id="topbar-center">
+        <a href="/" class="topbar-nav-link">Chat</a>
+        <a href="/transactions" class="topbar-nav-link">Transaktionen</a>
+        <a href="/settings" class="topbar-nav-link active">Einstellungen</a>
+      </nav>
+      <div id="topbar-right"></div>
+    </header>
+
+    <div id="settings-page">
+
+      <div class="settings-page-col">
+
+        <!-- Profil -->
+        <section class="settings-page-section">
+          <div class="settings-page-section-title">Profil</div>
+          <div class="settings-field">
+            <label class="settings-label">Name</label>
+            <input id="s-name" type="text" class="settings-input" placeholder="Paul Wilke">
+          </div>
+          <div class="settings-field">
+            <label class="settings-label">E-Mail</label>
+            <input id="s-email" type="email" class="settings-input" placeholder="paul@beispiel.de">
+          </div>
+        </section>
+
+        <!-- API Keys -->
+        <section class="settings-page-section">
+          <div class="settings-page-section-title">API Keys</div>
+
+          <div class="settings-field">
+            <label class="settings-label">
+              Anthropic API Key
+              <span id="s-anthropic-pill" class="settings-key-pill off">nicht gesetzt</span>
+            </label>
+            <div class="settings-input-row">
+              <input id="s-anthropic-key" type="password" class="settings-input" placeholder="sk-ant-...">
+              <button class="settings-eye-btn" data-target="s-anthropic-key" title="Anzeigen/Verstecken">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="settings-hint">Für KI-Kategorisierung und Sparempfehlungen. Gespeichert in <code>.env</code>.</div>
+          </div>
+
+          <div class="settings-field">
+            <label class="settings-label">
+              GitHub Token
+              <span id="s-github-pill" class="settings-key-pill off">nicht gesetzt</span>
+            </label>
+            <div class="settings-input-row">
+              <input id="s-github-token" type="password" class="settings-input" placeholder="ghp_...">
+              <button class="settings-eye-btn" data-target="s-github-token" title="Anzeigen/Verstecken">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="settings-hint">Optional. Für Bug-Reports aus der Desktop-App. Gespeichert in <code>.env</code>.</div>
+          </div>
+        </section>
+
+        <!-- App -->
+        <section class="settings-page-section">
+          <div class="settings-page-section-title">App</div>
+          <div class="settings-field">
+            <label class="settings-label">Datenbank</label>
+            <div class="settings-info" id="s-db-path">backend/cut_the_fat.db</div>
+          </div>
+          <div class="settings-field">
+            <label class="settings-label">Version</label>
+            <div class="settings-info">0.1.1</div>
+          </div>
+          <div id="s-bug-report-row" class="settings-field" style="display:none">
+            <label class="settings-label">Bug melden</label>
+            <button id="bug-report-btn" class="settings-action-btn">&#128027; Bug Report erstellen</button>
+          </div>
+        </section>
+
+        <div class="settings-page-footer">
+          <button id="settings-cancel" class="settings-btn-secondary" onclick="history.back()">Abbrechen</button>
+          <button id="settings-save" class="settings-btn-primary">Speichern</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Bug Report Modal -->
+    <div id="bug-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; justify-content:center; align-items:center;">
+      <div style="background:#1a1d27; border:1px solid #2e3348; border-radius:12px; padding:24px; width:420px; max-width:90vw;">
+        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">&#128027; Bug melden</h3>
+        <input id="bug-title" type="text" placeholder="Kurzbeschreibung..." style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; box-sizing:border-box;">
+        <textarea id="bug-desc" placeholder="Was ist passiert?" rows="3" style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical; box-sizing:border-box;"></textarea>
+        <textarea id="bug-steps" placeholder="Schritte zur Reproduktion (optional)" rows="2" style="width:100%; padding:8px 12px; margin-bottom:14px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical; box-sizing:border-box;"></textarea>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="bug-cancel" style="padding:6px 16px; border-radius:16px; border:1px solid #2e3348; background:#242836; color:#8b8fa8; font-size:12px; cursor:pointer;">Abbrechen</button>
+          <button id="bug-submit" style="padding:6px 16px; border-radius:16px; border:1px solid #6366f1; background:rgba(99,102,241,0.15); color:#6366f1; font-size:12px; cursor:pointer;">Senden</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="topbar.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

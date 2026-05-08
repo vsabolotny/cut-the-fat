@@ -689,7 +689,7 @@ async function initStatus() {
 
 // ── Settings saved: refresh status (topbar.js fires 'settingsSaved') ──
 document.addEventListener('settingsSaved', async () => {
-  globalStatus = await fetch(window.window.apiUrl('/api/status')).then(r => r.json());
+  globalStatus = await fetch(window.apiUrl('/api/status')).then(r => r.json());
 });
 
 // ── Bug Report submit (topbar.js fires 'bugReportSubmit' with detail) ──
@@ -698,7 +698,7 @@ document.addEventListener('bugReportSubmit', async (e) => {
   const msgs = Array.from(chatMessages.querySelectorAll('.msg-bubble'))
     .slice(-50).map(el => el.textContent.trim()).join('\n');
   try {
-    const resp = await fetch(window.window.apiUrl('/api/bugreport'), {
+    const resp = await fetch(window.apiUrl('/api/bugreport'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
