@@ -42,6 +42,7 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Build sidecar
+        shell: bash
         run: >-
           python -m PyInstaller
           --onefile
@@ -49,7 +50,7 @@ jobs:
           ${{ matrix.strip }}
           --paths=backend
           --paths=.
-          --add-data=${{ matrix.add_data }}
+          "--add-data=${{ matrix.add_data }}"
           --hidden-import=uvicorn.logging
           --hidden-import=uvicorn.loops.auto
           --hidden-import=uvicorn.protocols.http.auto
