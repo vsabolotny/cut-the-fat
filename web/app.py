@@ -3,8 +3,14 @@
 Kann standalone oder als Tauri-Sidecar laufen:
   Standalone:  uvicorn web.app:app --host 127.0.0.1 --port 8080
   Sidecar:     python -m web.app 8765   (gibt "READY:8765" auf stdout aus)
+
+Wenn die Env-Var CTF_AUTH_TOKEN gesetzt ist (von Tauri beim Spawn), wird
+auf allen /api/*-Routen und der WebSocket-Verbindung ein Shared-Token-Check
+erzwungen (siehe web/auth.py).
 """
+import asyncio
 import logging
+import os
 import sys
 import warnings
 
@@ -22,23 +28,38 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from web.ws_manager import manager
 from web.logic.processor import process_message
+from web.auth import AuthMiddleware, check_ws_token, get_auth_token
 
 app = FastAPI(title="Cut the Fat")
 
-# CORS: Tauri WebView uses tauri://localhost (macOS) or https://tauri.localhost
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Auth runs before CORS so unauthorized requests never reach business logic.
+app.add_middleware(AuthMiddleware)
+
+# CORS only matters in Tauri mode (WebView origin is tauri://localhost or
+# https://tauri.localhost). In standalone web mode the browser and backend
+# share the same origin, so no CORS header is needed.
+if get_auth_token():
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "tauri://localhost",
+            "https://tauri.localhost",
+        ],
+        allow_origin_regex=r"^tauri://.*$",
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-CTF-Token"],
+    )
 
 STATIC_DIR = Path(__file__).parent / "static"
 UPLOAD_TMP = Path(__file__).resolve().parent.parent / "data" / "uploads"
+
+# Serialize writes to .env / profile to avoid TOCTOU when two requests overlap.
+_SETTINGS_LOCK = asyncio.Lock()
 
 
 @app.on_event("startup")
@@ -55,6 +76,11 @@ async def index():
 
 @app.websocket("/ws/chat")
 async def ws_chat(websocket: WebSocket):
+    # Token check before accepting the upgrade.
+    if not check_ws_token(websocket.query_params.get("token", "")):
+        await websocket.close(code=1008)
+        return
+
     await manager.connect(websocket)
     try:
         while True:
@@ -270,21 +296,35 @@ async def api_anthropic_learn_payload():
     }
 
 
+# ── Bug report ──
+
+class BugReportPayload(BaseModel):
+    title: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=10_000)
+    steps: str = Field(default="", max_length=10_000)
+    include_chat_log: bool = False
+    chat_log: str = Field(default="", max_length=20_000)
+
+
 @app.post("/api/bugreport")
-async def api_bugreport(body: dict):
-    """Accept a bug report from the desktop app and create a GitHub Issue."""
-    from web.handlers.bugreport import create_bug_report
+async def api_bugreport(payload: BugReportPayload):
+    """Create a GitHub Issue. Chat log is opt-in and amount-masked."""
+    from web.handlers.bugreport import create_bug_report, mask_amounts
 
-    title = body.get("title", "Bug Report aus Desktop-App")
-    description = body.get("description", "")
-    steps = body.get("steps", "")
-    chat_log = body.get("chat_log", "")
+    title = (payload.title or "Bug Report aus Desktop-App").strip() or "Bug Report aus Desktop-App"
+    description = payload.description.strip()
+    steps = payload.steps.strip()
 
-    md_body = f"## Beschreibung\n\n{description}\n\n"
+    md_body = f"## Beschreibung\n\n{description or '(keine Beschreibung)'}\n\n"
     if steps:
         md_body += f"## Schritte zur Reproduktion\n\n{steps}\n\n"
-    if chat_log:
-        md_body += f"## Chat-Kontext (letzte Nachrichten)\n\n```\n{chat_log}\n```\n"
+    if payload.include_chat_log and payload.chat_log.strip():
+        masked = mask_amounts(payload.chat_log.strip())
+        md_body += (
+            "## Chat-Kontext\n\n"
+            "_Vom Nutzer freigegeben. Beträge sind maskiert._\n\n"
+            f"```\n{masked}\n```\n"
+        )
 
     result = await create_bug_report(title=title, body=md_body)
     return result
@@ -302,12 +342,32 @@ def _read_env() -> list[str]:
     return []
 
 
+def _sanitize_env_value(value: str) -> str:
+    """Strip control characters and surrounding whitespace.
+
+    .env can't represent literal newlines safely; we drop them rather than
+    silently encoding, since a key with a newline is almost certainly a
+    copy-paste error from the user.
+    """
+    return "".join(ch for ch in value if ch >= " " and ch != "\x7f").strip()
+
+
 def _write_env_key(lines: list[str], key_name: str, value: str) -> list[str]:
-    for i, line in enumerate(lines):
-        if line.startswith(f"{key_name}=") or line.startswith(f"{key_name} ="):
-            lines[i] = f"{key_name}={value}"
+    """Set or append KEY=value, preserving quoting if the line was quoted before.
+
+    Matches the key only when it appears at the start of a line (with optional
+    leading whitespace) so `# KEY=...` comments are not rewritten.
+    """
+    safe = _sanitize_env_value(value)
+    needs_quote = any(ch.isspace() for ch in safe) or "#" in safe
+    rendered = f'{key_name}="{safe}"' if needs_quote else f"{key_name}={safe}"
+
+    for i, raw in enumerate(lines):
+        stripped = raw.lstrip()
+        if stripped.startswith(f"{key_name}=") or stripped.startswith(f"{key_name} ="):
+            lines[i] = rendered
             return lines
-    lines.append(f"{key_name}={value}")
+    lines.append(rendered)
     return lines
 
 
@@ -321,7 +381,6 @@ def _mask(key: str) -> str:
 async def api_settings_get():
     """Return current settings (keys masked, profile plain)."""
     from app.config import get_settings
-    import os, json as _json
     settings = get_settings()
     anthropic_key = settings.anthropic_api_key or ""
     github_token = os.environ.get("GITHUB_TOKEN", "")
@@ -329,46 +388,63 @@ async def api_settings_get():
     profile = {}
     if _PROFILE_FILE.exists():
         try:
-            profile = _json.loads(_PROFILE_FILE.read_text(encoding="utf-8"))
+            profile = json.loads(_PROFILE_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
 
-    return {
+    # Only expose the DB path when running as a Tauri sidecar — the desktop
+    # app uses it for diagnostics; we don't want to leak filesystem layout
+    # to a browser running standalone web mode.
+    response = {
         "anthropic_key_set": bool(anthropic_key),
         "anthropic_key_masked": _mask(anthropic_key),
         "github_token_set": bool(github_token),
         "github_token_masked": _mask(github_token),
         "profile": profile,
-        "db_path": str(Path(__file__).resolve().parent.parent / "backend" / "cut_the_fat.db"),
+        "version": "0.1.2",
     }
+    if get_auth_token():
+        response["db_path"] = str(
+            Path(__file__).resolve().parent.parent / "backend" / "cut_the_fat.db"
+        )
+    return response
 
 
 @app.post("/api/settings")
 async def api_settings_set(body: dict):
     """Save profile + env keys. Only updates fields present in the request."""
-    import json as _json
     from app.config import get_settings
 
-    lines = _read_env()
-    changed_env = False
+    async with _SETTINGS_LOCK:
+        lines = _read_env()
+        changed_env = False
 
-    if "anthropic_api_key" in body:
-        key = (body["anthropic_api_key"] or "").strip()
-        lines = _write_env_key(lines, "ANTHROPIC_API_KEY", key)
-        changed_env = True
+        if "anthropic_api_key" in body:
+            key = _sanitize_env_value(body["anthropic_api_key"] or "")
+            lines = _write_env_key(lines, "ANTHROPIC_API_KEY", key)
+            os.environ["ANTHROPIC_API_KEY"] = key
+            changed_env = True
 
-    if "github_token" in body:
-        token = (body["github_token"] or "").strip()
-        lines = _write_env_key(lines, "GITHUB_TOKEN", token)
-        changed_env = True
+        if "github_token" in body:
+            token = _sanitize_env_value(body["github_token"] or "")
+            lines = _write_env_key(lines, "GITHUB_TOKEN", token)
+            os.environ["GITHUB_TOKEN"] = token
+            changed_env = True
 
-    if changed_env:
-        _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        get_settings.cache_clear()
+        if changed_env:
+            _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            get_settings.cache_clear()
 
-    if "profile" in body:
-        profile = {k: str(v).strip() for k, v in (body["profile"] or {}).items() if v}
-        _PROFILE_FILE.write_text(_json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+        if "profile" in body:
+            profile = {
+                k: str(v).strip()
+                for k, v in (body["profile"] or {}).items()
+                if v
+            }
+            _PROFILE_FILE.write_text(
+                json.dumps(profile, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
     return {"ok": True}
 

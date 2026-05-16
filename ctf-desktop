@@ -21,6 +21,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Ensure Tauri dev / build child processes are torn down if the script exits
+# (Ctrl-C, error, etc.) so we don't leak orphan node/cargo processes.
+cleanup() {
+  if [[ -n "${TAURI_PID:-}" ]] && kill -0 "$TAURI_PID" 2>/dev/null; then
+    kill "$TAURI_PID" 2>/dev/null || true
+    wait "$TAURI_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
 SKIP_BUILD=false
 RELEASE=false
 
@@ -94,12 +104,16 @@ fi
 
 if [[ "$RELEASE" == true ]]; then
   echo "📦 Baue Release-Bundle..."
-  npx tauri build
+  npx tauri build &
+  TAURI_PID=$!
+  wait "$TAURI_PID"
   echo ""
   echo "✅ Release-Bundle liegt in src-tauri/target/release/bundle/"
 else
   echo "🚀 Starte Tauri im Entwicklungsmodus..."
   echo "   (Frontend: web/static/ | Backend: Python Sidecar)"
   echo ""
-  npx tauri dev
+  npx tauri dev &
+  TAURI_PID=$!
+  wait "$TAURI_PID"
 fi

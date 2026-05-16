@@ -12,7 +12,7 @@
     <!-- Global Top Navigation Bar -->
     <header id="topbar">
       <div id="topbar-left">
-        <span class="logo">&#9986; Cut the Fat</span>
+        <a href="/" class="logo">&#9986; Cut the Fat</a>
       </div>
       <nav id="topbar-center">
         <a href="/" class="topbar-nav-link">Chat</a>
@@ -81,16 +81,16 @@
           </div>
           <div class="settings-field">
             <label class="settings-label">Version</label>
-            <div class="settings-info">0.1.2</div>
+            <div class="settings-info" id="s-version">…</div>
           </div>
-          <div id="s-bug-report-row" class="settings-field" style="display:none">
+          <div id="s-bug-report-row" class="settings-field hidden">
             <label class="settings-label">Bug melden</label>
             <button id="bug-report-btn" class="settings-action-btn">&#128027; Bug Report erstellen</button>
           </div>
         </section>
 
         <div class="settings-page-footer">
-          <button id="settings-cancel" class="settings-btn-secondary" onclick="history.back()">Abbrechen</button>
+          <button id="settings-cancel" class="settings-btn-secondary">Abbrechen</button>
           <button id="settings-save" class="settings-btn-primary">Speichern</button>
         </div>
 
@@ -98,15 +98,21 @@
     </div>
 
     <!-- Bug Report Modal -->
-    <div id="bug-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; justify-content:center; align-items:center;">
-      <div style="background:#1a1d27; border:1px solid #2e3348; border-radius:12px; padding:24px; width:420px; max-width:90vw;">
-        <h3 style="margin:0 0 16px; font-size:16px; color:#e4e6f0;">&#128027; Bug melden</h3>
-        <input id="bug-title" type="text" placeholder="Kurzbeschreibung..." style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; box-sizing:border-box;">
-        <textarea id="bug-desc" placeholder="Was ist passiert?" rows="3" style="width:100%; padding:8px 12px; margin-bottom:10px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical; box-sizing:border-box;"></textarea>
-        <textarea id="bug-steps" placeholder="Schritte zur Reproduktion (optional)" rows="2" style="width:100%; padding:8px 12px; margin-bottom:14px; background:#0f1117; border:1px solid #2e3348; border-radius:8px; color:#e4e6f0; font-size:13px; resize:vertical; box-sizing:border-box;"></textarea>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
-          <button id="bug-cancel" style="padding:6px 16px; border-radius:16px; border:1px solid #2e3348; background:#242836; color:#8b8fa8; font-size:12px; cursor:pointer;">Abbrechen</button>
-          <button id="bug-submit" style="padding:6px 16px; border-radius:16px; border:1px solid #6366f1; background:rgba(99,102,241,0.15); color:#6366f1; font-size:12px; cursor:pointer;">Senden</button>
+    <div id="bug-modal" class="bug-modal-overlay hidden">
+      <div class="bug-modal">
+        <h3 class="bug-modal-title">&#128027; Bug melden</h3>
+        <input id="bug-title" type="text" class="bug-modal-input" placeholder="Kurzbeschreibung...">
+        <textarea id="bug-desc" rows="3" class="bug-modal-input" placeholder="Was ist passiert?"></textarea>
+        <textarea id="bug-steps" rows="2" class="bug-modal-input" placeholder="Schritte zur Reproduktion (optional)"></textarea>
+        <label class="bug-modal-checkbox">
+          <input id="bug-include-log" type="checkbox">
+          <span>
+            Chat-Verlauf anhängen <span class="bug-modal-warning">(enthält Händler &amp; Kategorien, Beträge werden maskiert)</span>
+          </span>
+        </label>
+        <div class="bug-modal-actions">
+          <button id="bug-cancel" class="bug-modal-cancel">Abbrechen</button>
+          <button id="bug-submit" class="bug-modal-submit">Senden</button>
         </div>
       </div>
     </div>

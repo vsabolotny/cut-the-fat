@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cut the Fat</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+          integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+          crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"
+          integrity="sha384-H+hy9ULve6xfxRkWIh/YOtvDdpXgV2fmAGQkIDTxIgZwNoaoBal14Di2YTMR6MzR"
+          crossorigin="anonymous"></script>
 </head>
 <body>
   <div id="app" data-current-month="2026-03" data-last-intent="">
@@ -14,7 +18,7 @@
     <!-- Global Top Navigation Bar -->
     <header id="topbar">
       <div id="topbar-left">
-        <span class="logo">&#9986; Cut the Fat</span>
+        <a href="/" class="logo">&#9986; Cut the Fat</a>
       </div>
       <nav id="topbar-center">
         <a href="/" class="topbar-nav-link active">Chat</a>
@@ -29,7 +33,6 @@
 
     <!-- Left: Chat Panel -->
     <aside id="chat-panel">
-      <div class="panel-header" style="display:none;"></div>
 
       <div id="chat-messages" role="log" aria-live="polite"></div>
 
