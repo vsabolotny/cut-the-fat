@@ -1,7 +1,7 @@
 /* ── Cut the Fat — Split-View (WebSocket-Backend) ── */
 
-// window.IS_TAURI, window.BACKEND_BASE, apiUrl are defined by topbar.js (loaded before this script)
-let WS_BASE = '';
+// window.IS_TAURI, window.BACKEND_BASE, window.AUTH_TOKEN, apiFetch, wsUrl,
+// backendReady are defined by topbar.js (loaded before this script).
 
 const chatMessages = document.getElementById('chat-messages');
 const form = document.getElementById('input-form');
@@ -54,24 +54,7 @@ let reconnectTimer = null;
 let heartbeatTimer = null;
 
 function connectWS() {
-  // In Tauri mode, resolve backend port via IPC first
-  if (window.IS_TAURI && !window.BACKEND_BASE) {
-    window.__TAURI_INTERNALS__.invoke('get_backend_port').then(port => {
-      window.BACKEND_BASE = `http://localhost:${port}`;
-      WS_BASE = `ws://localhost:${port}`;
-      connectWS();  // retry with resolved URLs
-    }).catch(err => {
-      console.error('Backend port resolution failed:', err);
-      setTimeout(connectWS, 3000);
-    });
-    return;
-  }
-
-  const wsUrl = WS_BASE
-    ? `${WS_BASE}/ws/chat`
-    : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/chat`;
-
-  ws = new WebSocket(wsUrl);
+  ws = new WebSocket(window.wsUrl('/ws/chat'));
 
   ws.onopen = () => {
     console.log('WS connected');
@@ -474,7 +457,7 @@ function renderAnthropicNotice(msg) {
     const url = msg.payload_url;
     if (!url) return;
     try {
-      const resp = await fetch(window.apiUrl(url));
+      const resp = await window.apiFetch(url);
       const payload = await resp.json();
       openPayloadModal(payload, msg.title || 'Anthropic Payload');
     } catch (e) {
@@ -643,7 +626,7 @@ fileInput.addEventListener('change', async () => {
   formData.append('file', file);
 
   try {
-    const resp = await fetch(window.apiUrl('/api/upload'), { method: 'POST', body: formData });
+    const resp = await window.apiFetch('/api/upload', { method: 'POST', body: formData });
     const result = await resp.json();
     removeProgress();
 
@@ -680,7 +663,7 @@ dropZone.addEventListener('drop', e => {
 // ── Init ──
 async function initStatus() {
   try {
-    const resp = await fetch(window.apiUrl('/api/status'));
+    const resp = await window.apiFetch('/api/status');
     globalStatus = await resp.json();
   } catch (_) {
     globalStatus = { anthropic_enabled: null };
@@ -689,26 +672,49 @@ async function initStatus() {
 
 // ── Settings saved: refresh status (topbar.js fires 'settingsSaved') ──
 document.addEventListener('settingsSaved', async () => {
-  globalStatus = await fetch(window.apiUrl('/api/status')).then(r => r.json());
+  try {
+    globalStatus = await (await window.apiFetch('/api/status')).json();
+  } catch (_) {}
 });
 
 // ── Bug Report submit (topbar.js fires 'bugReportSubmit' with detail) ──
-document.addEventListener('bugReportSubmit', async (e) => {
-  const { title, description, steps } = e.detail;
-  const msgs = Array.from(chatMessages.querySelectorAll('.msg-bubble'))
-    .slice(-50).map(el => el.textContent.trim()).join('\n');
+function safeIssueUrl(url) {
+  // GitHub-only allowlist — only render as link if it points to a real
+  // GitHub issue URL. Otherwise we just show the raw string.
+  if (typeof url !== 'string') return null;
   try {
-    const resp = await fetch(window.apiUrl('/api/bugreport'), {
+    const u = new URL(url);
+    if (u.protocol === 'https:' && u.hostname === 'github.com') return u.href;
+  } catch (_) {}
+  return null;
+}
+
+document.addEventListener('bugReportSubmit', async (e) => {
+  const { title, description, steps, includeChatLog } = e.detail;
+  const chatLog = includeChatLog
+    ? Array.from(chatMessages.querySelectorAll('.msg-bubble'))
+        .slice(-50).map(el => el.textContent.trim()).join('\n')
+    : '';
+  try {
+    const resp = await window.apiFetch('/api/bugreport', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: title || 'Bug Report aus Desktop-App',
-        description, steps, chat_log: msgs,
+        description,
+        steps,
+        include_chat_log: !!includeChatLog,
+        chat_log: chatLog,
       }),
     });
     const result = await resp.json();
-    if (result.url) {
-      addBot(`✅ Bug Report erstellt: <a href="${result.url}" target="_blank">#${result.number}</a>`);
+    const safeUrl = safeIssueUrl(result.url);
+    if (safeUrl) {
+      addBot(
+        `✅ Bug Report erstellt: <a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer">#${esc(String(result.number))}</a>`
+      );
+    } else if (result.url) {
+      addBot(`✅ Bug Report erstellt: ${esc(result.url)}`);
     } else {
       addBot(`⚠️ ${esc(result.error || 'Unbekannter Fehler')}`);
     }
@@ -719,16 +725,7 @@ document.addEventListener('bugReportSubmit', async (e) => {
 
 // ── Start ──
 async function init() {
-  if (window.IS_TAURI) {
-    // Resolve backend port first
-    try {
-      const port = await window.__TAURI_INTERNALS__.invoke('get_backend_port');
-      window.BACKEND_BASE = `http://localhost:${port}`;
-      WS_BASE = `ws://localhost:${port}`;
-    } catch (err) {
-      console.error('Tauri backend port failed:', err);
-    }
-  }
+  await window.backendReady;
   await initStatus();
   connectWS();
 }

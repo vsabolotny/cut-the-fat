@@ -1,8 +1,14 @@
 /* ── Settings Page ── */
 
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 async function loadSettings() {
   try {
-    const data = await fetch(window.apiUrl('/api/settings')).then(r => r.json());
+    const data = await (await window.apiFetch('/api/settings')).json();
 
     const profile = data.profile || {};
     document.getElementById('s-name').value = profile.name || '';
@@ -23,8 +29,11 @@ async function loadSettings() {
     const dbEl = document.getElementById('s-db-path');
     if (dbEl && data.db_path) dbEl.textContent = data.db_path;
 
+    const versionEl = document.getElementById('s-version');
+    if (versionEl) versionEl.textContent = data.version || '–';
+
     const bugRow = document.getElementById('s-bug-report-row');
-    if (window.IS_TAURI && bugRow) bugRow.style.display = '';
+    if (window.IS_TAURI && bugRow) bugRow.classList.remove('hidden');
   } catch (_) {}
 }
 
@@ -35,6 +44,10 @@ document.querySelectorAll('.settings-eye-btn').forEach(btn => {
     if (t) t.type = t.type === 'password' ? 'text' : 'password';
   });
 });
+
+// Cancel button (replaces inline onclick=history.back())
+const cancelBtn = document.getElementById('settings-cancel');
+if (cancelBtn) cancelBtn.addEventListener('click', () => history.back());
 
 // Save
 document.getElementById('settings-save').addEventListener('click', async () => {
@@ -54,7 +67,7 @@ document.getElementById('settings-save').addEventListener('click', async () => {
   if (ghToken) body.github_token = ghToken;
 
   try {
-    await fetch(window.apiUrl('/api/settings'), {
+    await window.apiFetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -73,27 +86,45 @@ document.getElementById('settings-save').addEventListener('click', async () => {
 });
 
 // Bug report
-document.addEventListener('bugReportSubmit', async (e) => {
-  const { title, description, steps } = e.detail;
+function safeIssueUrl(url) {
+  if (typeof url !== 'string') return null;
   try {
-    const resp = await fetch(window.apiUrl('/api/bugreport'), {
+    const u = new URL(url);
+    if (u.protocol === 'https:' && u.hostname === 'github.com') return u.href;
+  } catch (_) {}
+  return null;
+}
+
+document.addEventListener('bugReportSubmit', async (e) => {
+  const { title, description, steps, includeChatLog } = e.detail;
+  try {
+    const resp = await window.apiFetch('/api/bugreport', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, steps, chat_log: '' }),
+      body: JSON.stringify({
+        title,
+        description,
+        steps,
+        include_chat_log: !!includeChatLog,
+        chat_log: '',
+      }),
     });
     const result = await resp.json();
-    alert(result.url ? `✅ Bug Report erstellt: ${result.url}` : `⚠️ ${result.error}`);
+    const safeUrl = safeIssueUrl(result.url);
+    if (safeUrl) {
+      alert('✅ Bug Report erstellt: ' + safeUrl);
+    } else if (result.url) {
+      alert('✅ Bug Report erstellt: ' + result.url);
+    } else {
+      alert('⚠️ ' + (result.error || 'Unbekannter Fehler'));
+    }
   } catch (err) {
     alert('❌ ' + err.message);
   }
 });
 
-// Init — wait for topbar.js to set up BACKEND_BASE in Tauri mode
-if (window.IS_TAURI) {
-  window.__TAURI_INTERNALS__.invoke('get_backend_port').then(port => {
-    window.BACKEND_BASE = `http://localhost:${port}`;
-    loadSettings();
-  }).catch(() => loadSettings());
-} else {
+// Init — single source of truth lives in topbar.js (window.backendReady).
+(async () => {
+  await window.backendReady;
   loadSettings();
-}
+})();

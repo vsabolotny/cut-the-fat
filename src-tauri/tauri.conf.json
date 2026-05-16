@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicholasgasior/tauri-config-schema/main/tauri.conf.schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "Cut the Fat",
   "version": "0.1.2",
   "identifier": "com.paulwilke.cutthefat",
@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ws://localhost:* http://localhost:*; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ws://localhost:* http://localhost:*; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     }
   },
   "plugins": {

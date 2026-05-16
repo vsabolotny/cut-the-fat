@@ -53,19 +53,23 @@ const addData = process.platform === 'win32'
   ? `--add-data=${staticSrc};static`
   : `--add-data=${staticSrc}:static`;
 
+// PyInstaller's --strip can produce broken binaries on macOS Apple Silicon;
+// only enable it on Linux where it reliably shrinks the output.
+const stripFlag = process.platform === 'linux' ? '--strip' : '';
+
 const cmd = [
   venvPython,
   '-m', 'PyInstaller',
   '--onefile',
   '--name', 'ctf-sidecar',
-  '--strip',
+  stripFlag,
   // Include backend/ in the analysis path so app.* modules are found
   `--paths=${resolve(root, 'backend')}`,
   `--paths=${resolve(root)}`,
   addData,
   hiddenImports,
   resolve(root, 'web', 'app.py'),
-].join(' ');
+].filter(Boolean).join(' ');
 
 execSync(cmd, { stdio: 'inherit', cwd: root });
 console.log('✅ Sidecar built: dist/ctf-sidecar');

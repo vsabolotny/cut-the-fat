@@ -1,33 +1,43 @@
-use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::CommandEvent;
-use tauri_plugin_updater::UpdaterExt;
-use tokio::sync::watch;
 use std::sync::Arc;
 
-struct BackendState {
-    port_rx: watch::Receiver<Option<u16>>,
+use tauri::Manager;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::ShellExt;
+use tauri_plugin_updater::UpdaterExt;
+use tokio::sync::watch;
+use uuid::Uuid;
+
+#[derive(Clone, serde::Serialize)]
+struct BackendInfo {
+    port: u16,
+    token: String,
 }
 
-/// IPC command: frontend calls this to get the backend port.
+struct BackendState {
+    info_rx: watch::Receiver<Option<BackendInfo>>,
+}
+
+/// IPC command: frontend calls this to get the backend port + auth token.
 /// Waits up to 30s for the sidecar to signal READY.
 #[tauri::command]
-async fn get_backend_port(state: tauri::State<'_, Arc<BackendState>>) -> Result<u16, String> {
-    let mut rx = state.port_rx.clone();
-    match tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        async move {
-            loop {
-                if let Some(port) = *rx.borrow() {
-                    return Ok(port);
-                }
-                rx.changed().await.map_err(|_| "channel closed".to_string())?;
+async fn get_backend_info(
+    state: tauri::State<'_, Arc<BackendState>>,
+) -> Result<BackendInfo, String> {
+    let mut rx = state.info_rx.clone();
+    match tokio::time::timeout(std::time::Duration::from_secs(30), async move {
+        loop {
+            if let Some(info) = rx.borrow().clone() {
+                return Ok::<BackendInfo, String>(info);
             }
-        },
-    )
+            rx.changed()
+                .await
+                .map_err(|_| "channel closed".to_string())?;
+        }
+    })
     .await
     {
-        Ok(Ok(port)) => Ok(port),
+        Ok(Ok(info)) => Ok(info),
         Ok(Err(e)) => Err(e),
         Err(_) => Err("Backend-Timeout: Sidecar hat nicht rechtzeitig geantwortet.".into()),
     }
@@ -52,39 +62,53 @@ async fn check_for_updates(app: tauri::AppHandle) {
     let msg = if notes.trim().is_empty() {
         format!("Version {} ist verfügbar.\n\nJetzt aktualisieren?", version)
     } else {
-        format!("Version {} ist verfügbar.\n\n{}\n\nJetzt aktualisieren?", version, notes.trim())
+        format!(
+            "Version {} ist verfügbar.\n\n{}\n\nJetzt aktualisieren?",
+            version,
+            notes.trim()
+        )
     };
 
-    let confirmed = tauri_plugin_dialog::DialogExt::dialog(&app)
-        .message(msg)
-        .title("Update verfügbar")
-        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
-            "Jetzt installieren".into(),
-            "Später".into(),
-        ))
-        .blocking_show();
+    // Run blocking_show on a dedicated blocking thread so we never park a
+    // tokio worker thread on a synchronous UI dialog.
+    let app_for_dialog = app.clone();
+    let confirmed = tauri::async_runtime::spawn_blocking(move || {
+        app_for_dialog
+            .dialog()
+            .message(msg)
+            .title("Update verfügbar")
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                "Jetzt installieren".into(),
+                "Später".into(),
+            ))
+            .blocking_show()
+    })
+    .await
+    .unwrap_or(false);
 
     if !confirmed {
         return;
     }
 
-    let _ = update.download_and_install(|_chunk, _total| {}, || {}).await;
+    let _ = update
+        .download_and_install(|_chunk, _total| {}, || {})
+        .await;
 
     // Restart to apply the update
     app.restart();
 }
 
 pub fn run() {
-    let (port_tx, port_rx) = watch::channel(None::<u16>);
+    let (info_tx, info_rx) = watch::channel::<Option<BackendInfo>>(None);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_backend_port])
+        .invoke_handler(tauri::generate_handler![get_backend_info])
         .setup(move |app| {
-            app.manage(Arc::new(BackendState { port_rx }));
+            app.manage(Arc::new(BackendState { info_rx }));
 
             // Check for updates in the background (non-blocking)
             let handle = app.handle().clone();
@@ -92,22 +116,26 @@ pub fn run() {
                 check_for_updates(handle).await;
             });
 
-            // Pick a free port for the Python sidecar
+            // Pick a free port and an auth token for the Python sidecar.
             let port = portpicker::pick_unused_port().expect("Kein freier Port gefunden");
+            let token = Uuid::new_v4().to_string();
+            let token_for_state = token.clone();
 
-            // Spawn the Python sidecar with the port as argument
+            // Spawn the Python sidecar with port as arg and the auth token
+            // as an env var. The sidecar uses it to gate /api/* and /ws/chat.
             let (mut rx, child) = app
                 .shell()
                 .sidecar("ctf-sidecar")
                 .expect("Sidecar 'ctf-sidecar' nicht gefunden")
                 .args([port.to_string()])
+                .env("CTF_AUTH_TOKEN", token.clone())
                 .spawn()
                 .expect("Sidecar konnte nicht gestartet werden");
 
             // IMPORTANT: keep child handle alive — dropping it kills the sidecar
             app.manage(child);
 
-            // Listen for the READY signal from the sidecar's stdout
+            // Listen for the READY signal from the sidecar's stdout.
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = rx.recv().await {
                     match event {
@@ -116,7 +144,10 @@ pub fn run() {
                             let trimmed = line.trim();
                             if trimmed.starts_with("READY:") {
                                 if let Ok(p) = trimmed[6..].parse::<u16>() {
-                                    let _ = port_tx.send(Some(p));
+                                    let _ = info_tx.send(Some(BackendInfo {
+                                        port: p,
+                                        token: token_for_state.clone(),
+                                    }));
                                 }
                             }
                         }
