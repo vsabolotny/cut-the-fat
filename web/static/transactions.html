@@ -10,17 +10,20 @@
 <body>
   <div id="txn-app">
 
-    <!-- Header -->
-    <header class="txn-header">
-      <div class="header-left">
+    <!-- Global Top Navigation Bar -->
+    <header id="topbar">
+      <div id="topbar-left">
         <a href="/" class="logo">&#9986; Cut the Fat</a>
-        <span class="page-title">Transaktionen</span>
       </div>
-      <div class="header-right">
-        <a href="/" class="nav-link">&#8592; Chat</a>
-      </div>
+      <nav id="topbar-center">
+        <a href="/" class="topbar-nav-link">Chat</a>
+        <a href="/transactions" class="topbar-nav-link active">Transaktionen</a>
+        <a href="/settings" class="topbar-nav-link">Einstellungen</a>
+      </nav>
+      <div id="topbar-right"></div>
     </header>
 
+    <div id="txn-content">
     <!-- Filter Bar -->
     <div class="filter-bar">
       <div class="filter-row">
@@ -121,8 +124,10 @@
         <button class="action-btn" id="modal-ok" style="border-color:var(--accent);color:var(--accent);">&Uuml;bernehmen</button>
       </div>
     </div>
-  </div>
+    </div><!-- /#txn-content -->
+  </div><!-- /#txn-app -->
 
+  <script src="topbar.js"></script>
   <script src="transactions.js"></script>
 </body>
 </html>

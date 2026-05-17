@@ -1,0 +1,140 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Stage 1: Build Python sidecar per platform ──
+  build-sidecar:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            triple: x86_64-unknown-linux-gnu
+            add_data: "web/static:static"
+            strip: "--strip"
+          - os: macos-latest
+            triple: aarch64-apple-darwin
+            add_data: "web/static:static"
+            strip: "--strip"
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+            ext: .exe
+            add_data: "web/static;static"
+            strip: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r backend/requirements.txt
+
+      - name: Build sidecar
+        shell: bash
+        run: >-
+          python -m PyInstaller
+          --onefile
+          --name ctf-sidecar
+          ${{ matrix.strip }}
+          --paths=backend
+          --paths=.
+          "--add-data=${{ matrix.add_data }}"
+          --hidden-import=uvicorn.logging
+          --hidden-import=uvicorn.loops.auto
+          --hidden-import=uvicorn.protocols.http.auto
+          --hidden-import=uvicorn.protocols.websockets.auto
+          --hidden-import=uvicorn.lifespan.on
+          --hidden-import=aiosqlite
+          --hidden-import=sqlalchemy.dialects.sqlite
+          --hidden-import=app.config
+          --hidden-import=app.database
+          --hidden-import=app.models.transaction
+          --hidden-import=app.models.upload
+          --hidden-import=app.models.merchant_rule
+          --hidden-import=app.models.insights_cache
+          --hidden-import=app.models.category
+          --hidden-import=app.services.categorizer
+          --hidden-import=app.services.insights
+          --hidden-import=app.queries
+          web/app.py
+
+      - name: Rename for Tauri
+        run: |
+          mkdir -p src-tauri/binaries
+          cp dist/ctf-sidecar${{ matrix.ext }} src-tauri/binaries/ctf-sidecar-${{ matrix.triple }}${{ matrix.ext }}
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-${{ matrix.triple }}
+          path: src-tauri/binaries/ctf-sidecar-${{ matrix.triple }}${{ matrix.ext }}
+
+  # ── Stage 2: Build Tauri app per platform ──
+  build-tauri:
+    needs: build-sidecar
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            triple: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            triple: aarch64-apple-darwin
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+            ext: .exe
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Download sidecar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sidecar-${{ matrix.triple }}
+          path: src-tauri/binaries/
+
+      - name: Make sidecar executable
+        if: matrix.os != 'windows-latest'
+        run: chmod +x src-tauri/binaries/ctf-sidecar-${{ matrix.triple }}
+
+      - name: Install Tauri CLI
+        run: npm install @tauri-apps/cli@latest
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Cut the Fat ${{ github.ref_name }}"
+          releaseBody: "Desktop-App Release. Siehe CHANGELOG für Details."
+          releaseDraft: false
+          prerelease: false
+          updaterJsonPreferNsis: false
+          updaterJsonKeepUniversal: false

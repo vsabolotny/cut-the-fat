@@ -81,7 +81,7 @@ function toISO(d) {
 
 async function loadCategories() {
   try {
-    const resp = await fetch('/api/categories');
+    const resp = await window.apiFetch('/api/categories');
     allCategories = await resp.json();
     filterCategory.innerHTML = '<option value="Alle">Alle Kategorien</option>';
     allCategories.forEach(c => {
@@ -109,7 +109,7 @@ async function loadTransactions() {
   params.set('offset', currentOffset);
 
   try {
-    const resp = await fetch(`/api/transactions?${params}`);
+    const resp = await window.apiFetch(`/api/transactions?${params}`);
     const data = await resp.json();
 
     loading.classList.add('hidden');
@@ -221,7 +221,7 @@ modalOk.addEventListener('click', async () => {
   modal.classList.add('hidden');
 
   if (modalApplyAll.checked) {
-    await fetch('/api/recategorize', {
+    await window.apiFetch('/api/recategorize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -273,6 +273,7 @@ filterMerchant.addEventListener('input', () => {
 
 // ── Init ──
 (async () => {
+  await window.backendReady;
   await loadCategories();
   // Set default: last month
   const range = getDateRange('last-month');

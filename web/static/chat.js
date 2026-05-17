@@ -1,5 +1,8 @@
 /* ── Cut the Fat — Split-View (WebSocket-Backend) ── */
 
+// window.IS_TAURI, window.BACKEND_BASE, window.AUTH_TOKEN, apiFetch, wsUrl,
+// backendReady are defined by topbar.js (loaded before this script).
+
 const chatMessages = document.getElementById('chat-messages');
 const form = document.getElementById('input-form');
 const input = document.getElementById('msg-input');
@@ -51,8 +54,7 @@ let reconnectTimer = null;
 let heartbeatTimer = null;
 
 function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws/chat`);
+  ws = new WebSocket(window.wsUrl('/ws/chat'));
 
   ws.onopen = () => {
     console.log('WS connected');
@@ -455,7 +457,7 @@ function renderAnthropicNotice(msg) {
     const url = msg.payload_url;
     if (!url) return;
     try {
-      const resp = await fetch(url);
+      const resp = await window.apiFetch(url);
       const payload = await resp.json();
       openPayloadModal(payload, msg.title || 'Anthropic Payload');
     } catch (e) {
@@ -624,7 +626,7 @@ fileInput.addEventListener('change', async () => {
   formData.append('file', file);
 
   try {
-    const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+    const resp = await window.apiFetch('/api/upload', { method: 'POST', body: formData });
     const result = await resp.json();
     removeProgress();
 
@@ -661,11 +663,71 @@ dropZone.addEventListener('drop', e => {
 // ── Init ──
 async function initStatus() {
   try {
-    const resp = await fetch('/api/status');
+    const resp = await window.apiFetch('/api/status');
     globalStatus = await resp.json();
   } catch (_) {
     globalStatus = { anthropic_enabled: null };
   }
 }
 
-initStatus().finally(() => connectWS());
+// ── Settings saved: refresh status (topbar.js fires 'settingsSaved') ──
+document.addEventListener('settingsSaved', async () => {
+  try {
+    globalStatus = await (await window.apiFetch('/api/status')).json();
+  } catch (_) {}
+});
+
+// ── Bug Report submit (topbar.js fires 'bugReportSubmit' with detail) ──
+function safeIssueUrl(url) {
+  // GitHub-only allowlist — only render as link if it points to a real
+  // GitHub issue URL. Otherwise we just show the raw string.
+  if (typeof url !== 'string') return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:' && u.hostname === 'github.com') return u.href;
+  } catch (_) {}
+  return null;
+}
+
+document.addEventListener('bugReportSubmit', async (e) => {
+  const { title, description, steps, includeChatLog } = e.detail;
+  const chatLog = includeChatLog
+    ? Array.from(chatMessages.querySelectorAll('.msg-bubble'))
+        .slice(-50).map(el => el.textContent.trim()).join('\n')
+    : '';
+  try {
+    const resp = await window.apiFetch('/api/bugreport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title || 'Bug Report aus Desktop-App',
+        description,
+        steps,
+        include_chat_log: !!includeChatLog,
+        chat_log: chatLog,
+      }),
+    });
+    const result = await resp.json();
+    const safeUrl = safeIssueUrl(result.url);
+    if (safeUrl) {
+      addBot(
+        `✅ Bug Report erstellt: <a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer">#${esc(String(result.number))}</a>`
+      );
+    } else if (result.url) {
+      addBot(`✅ Bug Report erstellt: ${esc(result.url)}`);
+    } else {
+      addBot(`⚠️ ${esc(result.error || 'Unbekannter Fehler')}`);
+    }
+  } catch (err) {
+    addBot(`❌ Bug Report fehlgeschlagen: ${esc(err.message)}`);
+  }
+});
+
+// ── Start ──
+async function init() {
+  await window.backendReady;
+  await initStatus();
+  connectWS();
+}
+
+init();
