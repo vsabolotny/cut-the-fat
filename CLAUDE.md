@@ -44,3 +44,7 @@ Neue Kategorie: `CATEGORIES` in `backend/app/models/transaction.py` — wird bei
 - SQLite bleibt — kein Postgres, keine Cloud-DB
 - Sidecar-Binaries nie committen (`src-tauri/binaries/` ist in `.gitignore`)
 - Port nie hardcoden — immer Port-Discovery via Sidecar-stdout-Signal
+- PDF-Kontoauszüge immer mit `x_tolerance=2` extrahieren (`pdf_parser.extract_bank_text`) —
+  der pdfplumber-Default verschluckt die Leerzeichen in Händlernamen, und die aus
+  CSV-Importen aufgebauten `merchant_rules` greifen dann nicht mehr
+- Vorzeichenkonvention in allen Parsern: **negativ = Ausgabe (debit)**, positiv = Eingang

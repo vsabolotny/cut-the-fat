@@ -4,8 +4,23 @@ from io import BytesIO
 
 import pdfplumber
 
+from . import pdf_easybank, pdf_postbank
 from .base import RawTransaction
 from .csv_parser import DATE_FORMATS, _parse_amount
+
+# Bankspezifische Parser werden vor der generischen Heuristik probiert
+BANK_PARSERS = (pdf_postbank, pdf_easybank)
+
+# pdfplumber setzt bei seinem Default von 3 keine Leerzeichen zwischen die Wörter
+# der Kontoauszüge ("VKBODYFITGmbH"). Die merchant_rules stammen aus CSV-Importen
+# mit korrekt getrennten Namen und würden sonst nicht mehr greifen.
+BANK_TEXT_X_TOLERANCE = 2
+
+
+def extract_bank_text(pdf) -> str:
+    return "\n".join(
+        page.extract_text(x_tolerance=BANK_TEXT_X_TOLERANCE) or "" for page in pdf.pages
+    )
 
 # Patterns for date detection
 DATE_PATTERN = re.compile(
@@ -106,7 +121,8 @@ def _extract_from_tables(pdf) -> list[RawTransaction]:
                             val = _parse_amount(raw)
                             if val and val > 0:
                                 amount = val
-                                txn_type = "credit" if is_neg else "debit"
+                                # Vorzeichenkonvention wie im CSV-Parser: negativ = Ausgabe
+                                txn_type = "debit" if is_neg else "credit"
                                 break
                 if not amount:
                     # Find last numeric-looking cell
@@ -177,15 +193,27 @@ def _extract_from_text(pdf) -> list[RawTransaction]:
             merchant=desc,
             description=desc,
             amount=amount,
-            type="credit" if is_neg else "debit",
+            type="debit" if is_neg else "credit",
         ))
 
     return transactions
 
 
 def parse_pdf(content: bytes) -> list[RawTransaction]:
-    """Parse PDF bank statement bytes into RawTransaction list."""
+    """Parse PDF bank statement bytes into RawTransaction list.
+
+    Bankspezifische Parser haben Vorrang; erkennt keiner das Format, greift die
+    generische Tabellen- bzw. Text-Heuristik.
+    """
     with pdfplumber.open(BytesIO(content)) as pdf:
+        bank_text = extract_bank_text(pdf)
+
+        for parser in BANK_PARSERS:
+            if parser.detect(bank_text):
+                transactions = parser.parse(bank_text)
+                if transactions:
+                    return transactions
+
         transactions = _extract_from_tables(pdf)
         if not transactions:
             transactions = _extract_from_text(pdf)

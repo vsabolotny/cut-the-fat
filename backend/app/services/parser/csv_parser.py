@@ -33,6 +33,18 @@ _CARD_PLACEHOLDERS = {
 }
 
 
+# PayPal bucht jede Zahlung doppelt: die Zahlung selbst und die Gegenbuchung, mit
+# der das hinterlegte Girokonto belastet wird. Die Gegenbuchung ist kein Eingang —
+# sie taucht auf dem Girokonto ohnehin als eigene Lastschrift auf.
+_PAYPAL_FUNDING_DESCRIPTION = "bankgutschrift auf paypal-konto"
+
+
+def _is_paypal_funding_row(row) -> bool:
+    return any(
+        str(v).strip().lower() == _PAYPAL_FUNDING_DESCRIPTION for v in row.values
+    )
+
+
 def _extract_card_merchant(merchant: str, description: str) -> str:
     """If merchant is a card-payment placeholder, extract real merchant from description."""
     if merchant.lower().strip() not in _CARD_PLACEHOLDERS:
@@ -269,6 +281,9 @@ def parse_csv(content: bytes) -> list[RawTransaction]:
     for _, row in df.iterrows():
         txn_date = _parse_date(row.get(date_col))
         if not txn_date:
+            continue
+
+        if _is_paypal_funding_row(row):
             continue
 
         merchant = str(row.get(merchant_col, "")).strip()

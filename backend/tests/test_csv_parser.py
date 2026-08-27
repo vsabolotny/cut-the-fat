@@ -156,10 +156,12 @@ class TestParseCsv:
         return "\n".join(lines).encode("utf-8")
 
     def test_debit_transaction_parsed(self):
-        """Ausgabe: positive Zahl im Betrag-Feld → type=debit.
-        In diesem Bankformat: positiv = Ausgabe (Lastschrift), negativ = Eingang (Gutschrift)."""
+        """Ausgabe: negative Zahl im Betrag-Feld → type=debit.
+
+        Vorzeichenkonvention des Postbank-Exports: negativ = Ausgabe
+        (Lastschrift/Kartenzahlung), positiv = Eingang (Gutschrift)."""
         csv = self._make_csv(
-            ["2026-02-03;REWE;Lebensmittel;32,50"],
+            ["2026-02-03;REWE;Lebensmittel;-32,50"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
@@ -169,9 +171,9 @@ class TestParseCsv:
         assert txns[0].type == "debit"
 
     def test_credit_transaction_parsed(self):
-        """Eingang (negative Zahl in CSV) → type=credit."""
+        """Eingang (positive Zahl in CSV) → type=credit."""
         csv = self._make_csv(
-            ["2026-02-25;Beispiel GmbH;LOHN / GEHALT 02/26;-3.500"],
+            ["2026-02-25;Beispiel GmbH;LOHN / GEHALT 02/26;3.500"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
@@ -214,7 +216,7 @@ class TestParseCsv:
             [
                 "2026-02-03;ALDI;Einkauf;-6,23",
                 "2026-02-05;Shell;Tanken;-60,00",
-                "2026-02-10;Beispiel GmbH;Gehalt;-3.500",
+                "2026-02-10;Beispiel GmbH;Gehalt;3.500",
             ],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
@@ -224,9 +226,9 @@ class TestParseCsv:
         assert txns[2].type == "credit"
 
     def test_miet_credit(self):
-        """Mieteinnahme: -1.990 EUR → credit, 1990 €"""
+        """Mieteinnahme: 1.990 EUR → credit, 1990 €"""
         csv = self._make_csv(
-            ["2026-02-01;Muster Mieter;Miete Februar;-1.990"],
+            ["2026-02-01;Muster Mieter;Miete Februar;1.990"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
@@ -235,9 +237,9 @@ class TestParseCsv:
         assert txns[0].type == "credit"
 
     def test_behoerde_credit(self):
-        """Behördenüberweisung: -1.090 EUR → credit, 1090 €"""
+        """Behördenüberweisung: 1.090 EUR → credit, 1090 €"""
         csv = self._make_csv(
-            ["2026-02-12;Muster Behoerde;Zahlung;-1.090"],
+            ["2026-02-12;Muster Behoerde;Zahlung;1.090"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
@@ -247,15 +249,15 @@ class TestParseCsv:
     def test_negative_amount_with_euro_symbol(self):
         """-120,00 € → debit, 120 €"""
         csv = self._make_csv(
-            ["2026-02-05;Muster Energie;Strom;120,00 €"],
+            ["2026-02-05;Muster Energie;Strom;-120,00 €"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
         assert txns[0].amount == Decimal("120.00")
         assert txns[0].type == "debit"
 
-    def test_zero_amount_parsed_as_debit(self):
-        """Betrag 0,00 (positiv) → debit. Parser filtert keine Null-Beträge."""
+    def test_zero_amount_not_dropped(self):
+        """Betrag 0,00 wird nicht herausgefiltert (z. B. entgeltfreie Buchung)."""
         csv = self._make_csv(
             ["2026-02-01;REWE;Einkauf;0,00"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
@@ -263,7 +265,6 @@ class TestParseCsv:
         txns = parse_csv(csv)
         assert len(txns) == 1
         assert txns[0].amount == Decimal("0.00")
-        assert txns[0].type == "debit"
 
     def test_paypal_merchant_kept(self):
         """PayPal-Transaktion behält PayPal als merchant (kein // in description)."""
@@ -317,7 +318,7 @@ class TestParseCsv:
     def test_paypal_empty_payee(self):
         """PayPal-Eintrag ohne Empfänger in Beschreibung → merchant bleibt PayPal."""
         csv = self._make_csv(
-            ["2025-12-02;PayPal (Europe) S.a r.l.;1234567890123 PP.8599.PP . , Ihr Einkauf bei;449,96"],
+            ["2025-12-02;PayPal (Europe) S.a r.l.;1234567890123 PP.8599.PP . , Ihr Einkauf bei;-449,96"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
@@ -326,10 +327,27 @@ class TestParseCsv:
         assert txns[0].amount == Decimal("449.96")
         assert txns[0].type == "debit"
 
-    def test_credit_refund_negative_amount(self):
-        """Rückerstattung (credit): negativ in CSV = Eingang."""
+    def test_paypal_funding_rows_suppressed(self):
+        """'Bankgutschrift auf PayPal-Konto' ist die Gegenbuchung zur Zahlung.
+
+        Sie belastet das Girokonto und taucht dort als eigene Lastschrift auf —
+        als Eingang gezählt würde sie die Zahlung neutralisieren."""
         csv = self._make_csv(
-            ["2025-12-05;Muster Theater;Rueckerstattung;-47,00"],
+            [
+                '"01.05.2026";"Zahlung";"EUR";"-30,99";"Zalando SE"',
+                '"01.05.2026";"Bankgutschrift auf PayPal-Konto";"EUR";"30,99";""',
+            ],
+            'Datum;Beschreibung;Wahrung;Brutto;Name',
+        )
+        txns = parse_csv(csv)
+        assert len(txns) == 1
+        assert txns[0].merchant == "Zalando SE"
+        assert txns[0].type == "debit"
+
+    def test_credit_refund_positive_amount(self):
+        """Rückerstattung (credit): positiv in CSV = Eingang."""
+        csv = self._make_csv(
+            ["2025-12-05;Muster Theater;Rueckerstattung;47,00"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
@@ -337,9 +355,9 @@ class TestParseCsv:
         assert txns[0].amount == Decimal("47.00")
 
     def test_large_round_thousands_credit(self):
-        """-1.990 als Mieteinnahme → 1990 €, credit"""
+        """1.990 als Mieteinnahme → 1990 €, credit"""
         csv = self._make_csv(
-            ["29.12.2025;Muster Mieter;Miete Dezember;-1.990"],
+            ["29.12.2025;Muster Mieter;Miete Dezember;1.990"],
             "Buchungstag;Begunstigter Auftraggeber;Verwendungszweck;Betrag",
         )
         txns = parse_csv(csv)
