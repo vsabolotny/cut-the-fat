@@ -20,19 +20,16 @@ Nutzer bekommen Update-Prompt wenn neue Version auf GitHub erscheint.
 - Sentry → GitHub Issues Integration (automatische Issue-Erstellung bei Crash)
 - Bug-Report-Button in Desktop-App ist schon da (`web/handlers/bugreport.py`)
 
-### csv_parser-Tests auf `main` reparieren `💡 Idee`
-**Problem:** 10 von 39 Tests in `backend/tests/test_csv_parser.py` schlagen auf
-sauberem `main` fehl — der Parser liefert `credit`, wo die Tests `debit` erwarten
-(Vorzeichen-Konvention gedreht). Entweder ist das Parser-Verhalten regressiert
-oder die Tests sind nach dem PII-Fixture-Umbau (f13557e) veraltet — in beiden
-Fällen ist die Suite rot und CI nicht vertrauenswürdig.
+### csv_parser-Tests auf `main` reparieren `✅ Fertig`
+Erledigt in PR #6 (CAT-25). Root Cause: **die Tests waren veraltet, nicht der Parser.**
+Commit `06980bf` (2026-05-03) hat die Vorzeichen-Konvention bewusst auf
+`negativ = Ausgabe` gedreht, die Fixtures aber nie nachgezogen. Gegen einen echten
+Postbank-Export verifiziert (`-8,xx` Kartenzahlung, `+500` Bargeldeinzahlung) und
+die Fixtures umgestellt. Dieselbe gedrehte Konvention steckte noch in beiden
+generischen Pfaden von `pdf_parser.py` und wurde mitkorrigiert.
 
-- **Priorität:** P1 — jede zukünftige Änderung erbt eine rote Baseline; wird zu P0,
-  sobald ein echter Import falsch herum kategorisiert (das wäre Datenkorruption im Dashboard).
-- **Auslöser:** Baseline-Check im CAT-26-Run (2026-08-27); identisch im Haupt-Checkout reproduziert.
-- **Scope:** Root-Cause klären (`backend/app/services/parser/csv_parser.py:223` vs. Fixture-Header
-  `Begunstigter Auftraggeber`), dann Parser ODER Tests fixen — nicht beides blind anpassen.
-- **Größe:** S–M · **Quelle:** CAT-26 / PR #5 · 2026-08-27
+Verbleibend rot in einem frischen Worktree: die 10 `test_history_integrity`-Tests —
+siehe eigener Eintrag unten.
 
 ---
 
@@ -167,6 +164,132 @@ nachzuvollziehen was passiert, was gecacht ist und was in der DB landet.
   Payload-Größe (lokal, nicht an Sentry)
 - Export: `./ctf export-diagnostics` → ZIP mit anonymisiertem DB-Dump +
   Log-Ausschnitt für Bug-Reports
+
+---
+
+## Aus dem Import Mai–Juli 2026 (CAT-25)
+
+### Konto-/Quellen-Dimension in `transactions` `💡 Idee`
+**Problem:** `transactions` kennt nur `upload_id`, keine Konto- oder Quellen-Zuordnung.
+PayPal- und Kreditkartenzahlungen erscheinen zweimal in der DB: einmal als
+Sammellastschrift auf dem Girokonto, einmal als Einzelposten aus dem Detailauszug.
+`./ctf dashboard` summiert über alle Uploads und zählt sie damit doppelt.
+
+- **Priorität:** P1 — die Zahlen, die das Tool anzeigt, sind bei gemischten Quellen
+  schlicht falsch, und man sieht es ihnen nicht an. Wäre P2, wenn nur eine Quelle
+  importiert würde; sobald Kreditkarte oder PayPal dazukommt, ist es P1.
+- **Auslöser:** Mai–Juli 2026: Dashboard zeigt 33.340 € Ausgaben, giro-basiert sind es
+  29.511 €. Differenz ≈ 3.830 € doppelt gezählte PayPal-/Kartenumsätze.
+- **Scope:** Spalte `account` (oder FK auf eine `accounts`-Tabelle) auf `transactions`,
+  gesetzt beim Import aus dem erkannten Format. Dashboard/Insights filtern auf das
+  Girokonto als Ground Truth, Detailquellen nur zur Aufschlüsselung. Nicht im Scope:
+  Multi-Account-UI, Kontoverwaltung.
+- **Größe:** M · **Quelle:** CAT-25 / PR #6 · 2026-08-27
+
+---
+
+### Category-Discovery erfindet Duplikate vorhandener Kategorien `💡 Idee`
+**Problem:** `category_discovery.py` schlägt neue Kategorien vor, die semantisch
+bereits existieren — `Restaurants & Lieferdienste` neben `Essen & Trinken`,
+`Tankstelle` neben `Mobilität`, `Baumarkt` und `Strom/Gas` neben `Wohnen`,
+`Campingplätze` neben `Urlaub`. Die Auswertung zerfasert, Vergleiche über Monate
+brechen, und jede Korrektur ist Handarbeit per SQL.
+
+- **Priorität:** P2 — kostet bei jedem Import Nacharbeit und macht Monatsvergleiche
+  unbrauchbar, korrumpiert aber keine Beträge. P1, sobald jemand den Kategorien im
+  Dashboard ohne Nachkontrolle vertraut.
+- **Auslöser:** CAT-25-Import erzeugte 11 neue Kategorien in einem Lauf. Auch **nach**
+  dem Seeding-Fix (PR #6), als der Prompt die vollständige kanonische Liste sah, kamen
+  noch `Baumarkt`, `Tankstelle` und `Campingplätze` dazu — der unvollständige Prompt war
+  also nur die halbe Ursache.
+- **Scope:** Prompt in `_DISCOVERY_SYSTEM` verschärfen (explizit gegen Untermengen
+  vorhandener Kategorien) und den Vorschlag serverseitig gegen `CATEGORIES` prüfen,
+  statt ihn ungefiltert zu übernehmen. Optional: Discovery per Flag abschaltbar.
+- **Größe:** S · **Quelle:** CAT-25 / PR #6 · 2026-08-27
+
+---
+
+### PayPal-Sammellastschriften automatisch aufschlüsseln `💡 Idee`
+**Problem:** Auf dem Girokonto ist jede PayPal-Zahlung nur „PayPal (Europe) S.a r.l."
+in der Kategorie `PayPal`. Der echte Empfänger steht in der PayPal-CSV und lässt sich
+über den Transaktionscode zuordnen — passiert aber nicht automatisch.
+
+- **Priorität:** P2 — betrifft rund 1.935 € über drei Monate, die als undifferenzierter
+  Block dastehen. Kein Datenverlust, aber der Bucket wächst mit jedem Monat.
+- **Auslöser:** Mai (alter CSV-Import) hat die PayPal-Lastschriften auf echte Kategorien
+  aufgeschlüsselt (Shopping, Abonnements, Mobilität), Juni/Juli liegen flach in `PayPal`.
+  Die Kategoriezeile ist dadurch zwischen den Monaten nicht vergleichbar.
+- **Scope:** Beim Import einer PayPal-CSV die Giro-Lastschriften über Betrag+Datum
+  matchen und die Kategorie des echten Empfängers übernehmen. Der manuelle
+  SQL-Workaround ist in der Projekt-Memory dokumentiert. Nicht im Scope: Kreditkarte
+  (dort ist der Händler bereits im Auszug).
+- **Größe:** M · **Quelle:** CAT-25 / PR #6 · 2026-08-27
+
+---
+
+### Überlappende Auszugszeiträume beim Upload erkennen `💡 Idee`
+**Problem:** `dedup_hash` ist `SHA-256(datum|merchant.lower()|betrag)` und damit vom
+Händlerstring abhängig. Derselbe Monat aus zwei Formaten (CSV-Export vs. PDF-Auszug)
+schreibt denselben Umsatz zweimal in die DB, weil die Schreibweise minimal abweicht.
+
+- **Priorität:** P2 — führt zu still verdoppelten Monaten. Der Nutzer merkt es erst an
+  unplausiblen Summen, und die Bereinigung ist ein manuelles `DELETE` auf `upload_id`.
+- **Auslöser:** CAT-25: der Mai-Giro lag als CSV (Upload 7) und als PDF (Upload 8) vor,
+  126 vs. 123 Buchungen, identischer Zeitraum 04.05.–29.05. Nur 7 Duplikate wurden
+  erkannt, die restlichen 116 nicht.
+- **Scope:** `dedup_hash` bleibt unverändert (unveränderliche Regel in `CLAUDE.md`).
+  Stattdessen beim Upload den Datumsbereich gegen bestehende Uploads prüfen und bei
+  Überlappung warnen bzw. rückfragen. Nicht im Scope: Merchant-Fuzzy-Matching.
+- **Größe:** S · **Quelle:** CAT-25 / PR #6 · 2026-08-27
+
+---
+
+### Empfänger von Auslandsüberweisungen aus dem Anlagenteil lesen `💡 Idee`
+**Problem:** Auslandsüberweisungen erscheinen im Postbank-Auszug nur als
+`AUSL.ZAHL. 02PR260710200014KREF+...` — ohne Empfänger. Der steht ausschließlich im
+Anlagenteil hinter `Anlagen zum Kontoauszug` (`BEGUENSTIGTER: ... MELNIKOVA OLHA`),
+den `pdf_postbank.parse()` bewusst nicht mitliest.
+
+- **Priorität:** P2 — der größte nicht-fixe Ausgabenblock des Quartals (2.314 € über
+  drei Monate) landet als anonyme Referenznummer in `Sonstiges`. Kein Fehler, nur blind.
+- **Auslöser:** CAT-25: zwei Überweisungen à ~1.150 € mussten über die REF-Nummer von
+  Hand zugeordnet werden, um überhaupt zu sehen, an wen sie gingen.
+- **Scope:** Anlagenteil separat parsen, REF-Nummer aus der Buchung gegen die Belege
+  matchen und Empfänger + Originalbetrag/Wechselkurs in die `description` schreiben.
+  Der Anlagenteil bleibt weiterhin keine Quelle für Buchungen.
+- **Größe:** S · **Quelle:** CAT-25 / PR #6 · 2026-08-27
+
+---
+
+### `test_history_integrity` von der Produktions-DB lösen `💡 Idee`
+**Problem:** Die zehn Tests in `backend/tests/test_history_integrity.py` laufen gegen
+die echte `backend/cut_the_fat.db`. In jedem frischen Worktree und in CI gibt es die
+nicht — die Tests scheitern mit `no such table: transactions`.
+
+- **Priorität:** P2 — hält die Suite dauerhaft rot, wo kein DB-File liegt, und
+  verdeckt damit echte Regressionen. P1, sobald die Suite in CI laufen soll.
+- **Auslöser:** Baseline-Check im CAT-25-Run: 10 rote Tests im Worktree, dieselben
+  10 grün gegen die echte DB.
+- **Scope:** Fixture, die eine temporäre SQLite-DB anlegt und mit einem kleinen,
+  bekannten Datensatz füllt (Muster wie in `test_category_seeding.py`, `NullPool`
+  wegen der Event-Loop-Wechsel). Die Integritätslogik selbst bleibt unverändert.
+- **Größe:** S · **Quelle:** CAT-25 / PR #6 · 2026-08-27
+
+---
+
+### Abrechnungszeitraum von Kreditkartenauszügen berücksichtigen `💡 Idee`
+**Problem:** easybank-Kreditkartenabrechnungen haben Stichtag Monatsanfang. Die
+Abrechnung „vom 2. Juni 2026" enthält die **Mai**-Umsätze. Wer nach Dateidatum oder
+Abrechnungsmonat sortiert, ordnet sie dem falschen Monat zu.
+
+- **Priorität:** P3 — die einzelnen Buchungsdaten sind korrekt, nur die Erwartung
+  „drei Auszüge = drei Monate" stimmt nicht. Wird P2, wenn das Dashboard je nach
+  Abrechnung statt nach Buchungsdatum gruppiert.
+- **Auslöser:** CAT-25 fragte nach Mai–Juli; die drei beigefügten Kartenabrechnungen
+  deckten April–Juni ab, die Juli-Umsätze fehlten komplett (August-Abrechnung).
+- **Scope:** `Abrechnungszeitraum: TT.MM.JJJJ - TT.MM.JJJJ` aus dem Auszug lesen und
+  beim Upload anzeigen, damit Lücken sichtbar werden.
+- **Größe:** S · **Quelle:** CAT-25 / PR #6 · 2026-08-27
 
 ---
 
