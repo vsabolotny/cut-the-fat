@@ -20,9 +20,49 @@ Nutzer bekommen Update-Prompt wenn neue Version auf GitHub erscheint.
 - Sentry → GitHub Issues Integration (automatische Issue-Erstellung bei Crash)
 - Bug-Report-Button in Desktop-App ist schon da (`web/handlers/bugreport.py`)
 
+### csv_parser-Tests auf `main` reparieren `💡 Idee`
+**Problem:** 10 von 39 Tests in `backend/tests/test_csv_parser.py` schlagen auf
+sauberem `main` fehl — der Parser liefert `credit`, wo die Tests `debit` erwarten
+(Vorzeichen-Konvention gedreht). Entweder ist das Parser-Verhalten regressiert
+oder die Tests sind nach dem PII-Fixture-Umbau (f13557e) veraltet — in beiden
+Fällen ist die Suite rot und CI nicht vertrauenswürdig.
+
+- **Priorität:** P1 — jede zukünftige Änderung erbt eine rote Baseline; wird zu P0,
+  sobald ein echter Import falsch herum kategorisiert (das wäre Datenkorruption im Dashboard).
+- **Auslöser:** Baseline-Check im CAT-26-Run (2026-08-27); identisch im Haupt-Checkout reproduziert.
+- **Scope:** Root-Cause klären (`backend/app/services/parser/csv_parser.py:223` vs. Fixture-Header
+  `Begunstigter Auftraggeber`), dann Parser ODER Tests fixen — nicht beides blind anpassen.
+- **Größe:** S–M · **Quelle:** CAT-26 / PR #5 · 2026-08-27
+
 ---
 
 ## Nächste Iteration
+
+### Redesign-Variante aus CAT-26 umsetzen `💡 Idee`
+**Problem:** CAT-26 hat 3 Prototyp-Varianten geliefert
+(`doc/design/CAT-26-frontend-redesign/prototype.html`), die Web-UI selbst ist unverändert.
+
+- **Priorität:** P2 — kein Nutzer wartet akut, aber die Analyse (DECISIONS.md §1)
+  benennt konkrete UX-Schulden der heutigen Chat-first-UI; wird P1, sobald Alpha-Nutzer
+  das Tracking regelmäßig verwenden.
+- **Auslöser:** Deliverable-Sichtung steht aus — Variante wählen (Empfehlung: 1 „Fluss"),
+  dann Umsetzungs-Ticket schneiden.
+- **Scope:** Gewählte Variante in `web/static/` umsetzen; aus Variante 2 den laufenden
+  Saldo als Detail übernehmen. Out: CLI, Desktop-Shell.
+- **Größe:** M · **Quelle:** CAT-26 / PR #5 · 2026-08-27
+
+### chart.js + marked lokal bündeln statt CDN `💡 Idee`
+**Problem:** `web/static/index.html:8–13` lädt chart.js und marked von jsdelivr.
+Die Desktop-App (Tauri, lokale SQLite, offline-first-Anspruch) verliert damit
+Chat-Charts und Markdown-Rendering, sobald kein Internet da ist.
+
+- **Priorität:** P2 — offline ist ein Produktversprechen der Desktop-App; P3, falls
+  entschieden wird, dass Desktop faktisch immer online läuft (KI-Calls brauchen ohnehin Netz).
+- **Auslöser:** CAT-26-Analyse; der Prototyp zeigt, dass die Flussleiste ohne chart.js geht.
+- **Scope:** Beide Libs vendoren (`web/static/vendor/`), CSP-Hashes in Tauri-Config anpassen.
+- **Größe:** S · **Quelle:** CAT-26 / PR #5 · 2026-08-27
+
+---
 
 ### Multi-Nutzer / Familien-Konten `💡 Idee`
 **Problem:** Aktuell Einzelnutzer. Familien haben mehrere Konten, wollen aber
