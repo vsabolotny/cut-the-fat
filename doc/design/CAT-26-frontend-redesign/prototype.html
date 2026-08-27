@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cut the Fat — Redesign-Prototyp (CAT-26)</title>
+<style>
+/* ════════════════════════════════════════════════════════════════
+   CAT-26 Redesign-Prototyp — 3 Varianten, umschaltbar oben rechts.
+   Vollständig eigenständig: keine externen Requests, öffnet per file://
+   ════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Fluss (Haushaltsbuch): Papier & Tinte, rote/schwarze Zahlen */
+  --f-paper: #faf8f3;
+  --f-ink: #191a1e;
+  --f-ink-soft: #5c5e66;
+  --f-rule: #ddd7c9;
+  --f-red: #bf2e2e;      /* rote Zahlen = Ausgaben */
+  --f-green: #1d6f44;    /* Übrig */
+  --f-card: #ffffff;
+  /* Kontoblatt: Bankiers-Grün-Schwarz + Messing */
+  --k-bg: #0f1412;
+  --k-ink: #e9e6dc;
+  --k-dim: #8a9187;
+  --k-rule: #24302a;
+  --k-brass: #d3ad55;
+  --k-red: #e06555;
+  /* Klassik+ : bestehende App-Tokens (bewusst identisch zu style.css) */
+  --c-bg: #0f1117;
+  --c-surface: #1a1d27;
+  --c-surface2: #242836;
+  --c-border: #2e3348;
+  --c-text: #e4e6f0;
+  --c-dim: #8b8fa8;
+  --c-accent: #6366f1;
+  --c-green: #22c55e;
+  --c-red: #ef4444;
+}
+
+html, body { height: 100%; }
+body {
+  font-family: "Avenir Next", "Helvetica Neue", -apple-system, "Segoe UI", system-ui, sans-serif;
+  line-height: 1.45;
+  transition: background .25s ease;
+}
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── Prototyp-Leiste (gehört nicht zum Design, nur zum Umschalten) ── */
+#proto-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: #111; color: #bbb;
+  font-size: 12px; letter-spacing: .04em;
+}
+#proto-bar .proto-label { text-transform: uppercase; font-weight: 600; color: #777; }
+#proto-bar button {
+  font: inherit; cursor: pointer;
+  padding: 4px 12px; border-radius: 999px;
+  border: 1px solid #444; background: transparent; color: #bbb;
+}
+#proto-bar button[aria-pressed="true"] { background: #fff; color: #111; border-color: #fff; font-weight: 600; }
+#proto-bar button:focus-visible, .variant :is(button,a,input,select):focus-visible { outline: 2px solid #4a90d9; outline-offset: 2px; }
+
+.variant { display: none; min-height: calc(100vh - 37px); }
+body[data-variant="fluss"]   #v-fluss   { display: block; }
+body[data-variant="konto"]   #v-konto   { display: block; }
+body[data-variant="klassik"] #v-klassik { display: block; }
+body[data-variant="fluss"]   { background: var(--f-paper); }
+body[data-variant="konto"]   { background: var(--k-bg); }
+body[data-variant="klassik"] { background: var(--c-bg); }
+
+/* ════════════ VARIANTE 1 · FLUSS ════════════ */
+#v-fluss { color: var(--f-ink); }
+#v-fluss .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 120px; }
+
+#v-fluss .masthead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  border-bottom: 3px double var(--f-ink);
+  padding-bottom: 10px; margin-bottom: 22px;
+}
+#v-fluss .brand { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
+#v-fluss .brand .scissors { margin-right: 6px; }
+#v-fluss .masthead-tools { display: flex; gap: 14px; align-items: baseline; }
+#v-fluss .quiet-link {
+  background: none; border: none; cursor: pointer; font: inherit;
+  font-size: 12.5px; color: var(--f-ink-soft); text-decoration: underline; text-underline-offset: 3px;
+}
+#v-fluss .quiet-link:hover { color: var(--f-ink); }
+
+#v-fluss .month-nav { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 6px; }
+#v-fluss .month-nav h1 {
+  font-size: 26px; font-weight: 700; letter-spacing: -.01em;
+}
+#v-fluss .month-nav button {
+  background: none; border: 1px solid var(--f-rule); border-radius: 50%;
+  width: 30px; height: 30px; cursor: pointer; color: var(--f-ink-soft); font-size: 15px;
+}
+#v-fluss .month-nav button:hover { border-color: var(--f-ink); color: var(--f-ink); }
+
+#v-fluss .flow-figures {
+  display: flex; justify-content: center; gap: 42px;
+  margin: 18px 0 14px; text-align: center;
+}
+#v-fluss .figure .eyebrow {
+  display: block; font-size: 11px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--f-ink-soft); margin-bottom: 2px;
+}
+#v-fluss .figure .val { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
+#v-fluss .figure.out .val { color: var(--f-red); }
+#v-fluss .figure.rest .val { color: var(--f-green); }
+
+/* Signatur: die Schnittleiste — Eingang wird in Kategorien zerteilt */
+#v-fluss .cutbar { margin: 10px 0 6px; }
+#v-fluss .cutbar-track {
+  display: flex; height: 34px; border: 1px solid var(--f-ink);
+  background: var(--f-card); overflow: hidden;
+}
+#v-fluss .cutbar-seg { height: 100%; min-width: 2px; position: relative; }
+#v-fluss .cutbar-seg.rest-seg { background: repeating-linear-gradient(135deg, #e7f2ea 0 6px, #d8eade 6px 7px); }
+#v-fluss .cutmark {
+  display: flex; justify-content: flex-end; font-size: 14px; line-height: 1;
+  transform: translateY(-4px); pointer-events: none;
+}
+#v-fluss .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+#v-fluss .chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 12.5px; cursor: pointer;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--f-rule); background: var(--f-card); color: var(--f-ink);
+}
+#v-fluss .chip .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+#v-fluss .chip .amt { color: var(--f-ink-soft); }
+#v-fluss .chip[aria-pressed="true"] { border-color: var(--f-ink); box-shadow: inset 0 0 0 1px var(--f-ink); }
+
+#v-fluss .feed-tools {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 26px 0 4px; border-top: 1px solid var(--f-rule); padding-top: 14px;
+}
+#v-fluss .feed-tools h2 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: var(--f-ink-soft); }
+#v-fluss .toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--f-ink-soft); cursor: pointer; }
+#v-fluss .toggle input { accent-color: var(--f-ink); }
+
+#v-fluss details.filters { margin: 6px 0 2px; font-size: 13px; }
+#v-fluss details.filters summary { cursor: pointer; color: var(--f-ink-soft); width: max-content; }
+#v-fluss details.filters .filter-body { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 0 4px; }
+#v-fluss details.filters :is(input, select) {
+  font: inherit; font-size: 13px; padding: 5px 9px;
+  border: 1px solid var(--f-rule); border-radius: 6px; background: var(--f-card); color: var(--f-ink);
+}
+
+#v-fluss .day-group { margin-top: 18px; }
+#v-fluss .day-head {
+  font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--f-ink-soft); border-bottom: 1px solid var(--f-rule); padding-bottom: 4px;
+}
+#v-fluss .txn {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 16px;
+  padding: 9px 2px; border-bottom: 1px solid #eee9dd;
+  cursor: pointer;
+}
+#v-fluss .txn:hover { background: #f3efe5; }
+#v-fluss .txn .merchant { font-weight: 600; font-size: 14.5px; grid-column: 1; grid-row: 1; }
+#v-fluss .txn .cat { font-size: 12px; color: var(--f-ink-soft); grid-column: 1; grid-row: 2; }
+#v-fluss .txn .amount { font-size: 15px; font-weight: 600; align-self: center; grid-column: 2; grid-row: 1 / span 2; }
+#v-fluss .txn .amount.debit { color: var(--f-red); }
+#v-fluss .txn .amount.credit { color: var(--f-ink); }
+#v-fluss .txn .amount.credit::before { content: "+ "; }
+#v-fluss .empty-note { padding: 24px 0; color: var(--f-ink-soft); font-size: 14px; }
+
+/* Assistent: schwebend, ausgeblendet bis gebraucht */
+#v-fluss .assistant-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 40;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--f-ink); color: var(--f-paper);
+  border: none; cursor: pointer; font-size: 21px;
+  box-shadow: 0 6px 18px rgba(20,20,25,.25);
+}
+#v-fluss .assistant-panel {
+  position: fixed; right: 22px; bottom: 86px; z-index: 40;
+  width: min(340px, calc(100vw - 44px));
+  background: var(--f-card); border: 1px solid var(--f-ink);
+  border-radius: 12px; padding: 14px; font-size: 13.5px;
+  box-shadow: 0 10px 30px rgba(20,20,25,.2);
+}
+#v-fluss .assistant-panel.hidden { display: none; }
+#v-fluss .assistant-panel .a-title { font-weight: 700; margin-bottom: 8px; }
+#v-fluss .assistant-panel .a-hint { color: var(--f-ink-soft); margin-bottom: 10px; }
+#v-fluss .assistant-panel .a-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+#v-fluss .assistant-panel .a-quick button {
+  font: inherit; font-size: 12px; cursor: pointer; padding: 4px 10px;
+  border-radius: 999px; border: 1px solid var(--f-rule); background: var(--f-paper);
+}
+#v-fluss .assistant-panel input {
+  width: 100%; font: inherit; font-size: 13.5px; padding: 8px 10px;
+  border: 1px solid var(--f-rule); border-radius: 8px;
+}
+
+/* ════════════ VARIANTE 2 · KONTOBLATT ════════════ */
+#v-konto { color: var(--k-ink); }
+#v-konto .wrap { max-width: 860px; margin: 0 auto; padding: 30px 20px 80px; }
+#v-konto .sheet-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+#v-konto h1 { font-size: 15px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; }
+#v-konto h1 .scissors { color: var(--k-brass); }
+#v-konto .period { font-size: 13px; color: var(--k-dim); letter-spacing: .08em; }
+#v-konto .sheet-summary {
+  display: flex; gap: 36px; padding: 14px 0; margin-bottom: 8px;
+  border-top: 1px solid var(--k-brass); border-bottom: 1px solid var(--k-rule);
+}
+#v-konto .s-item .lbl { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--k-dim); display: block; }
+#v-konto .s-item .v { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 19px; }
+#v-konto .s-item .v.neg { color: var(--k-red); }
+#v-konto .s-item .v.pos { color: var(--k-brass); }
+#v-konto table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#v-konto th {
+  text-align: left; font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--k-dim); font-weight: 600; padding: 8px 8px 6px; border-bottom: 1px solid var(--k-rule);
+}
+#v-konto td { padding: 6px 8px; border-bottom: 1px solid var(--k-rule); }
+#v-konto td.mono, #v-konto th.r { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+#v-konto th.r, #v-konto td.r { text-align: right; }
+#v-konto td.neg { color: var(--k-red); }
+#v-konto td.dim { color: var(--k-dim); }
+#v-konto tr:hover td { background: #141b17; }
+#v-konto .cat-tag { font-size: 11px; color: var(--k-dim); border: 1px solid var(--k-rule); padding: 1px 7px; border-radius: 3px; white-space: nowrap; }
+
+/* ════════════ VARIANTE 3 · KLASSIK+ ════════════ */
+#v-klassik { color: var(--c-text); }
+#v-klassik .topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 44px; padding: 0 16px;
+  background: var(--c-surface); border-bottom: 1px solid var(--c-border);
+}
+#v-klassik .logo { font-size: 15px; font-weight: 700; color: var(--c-text); text-decoration: none; }
+#v-klassik nav { display: flex; gap: 4px; }
+#v-klassik nav a {
+  color: var(--c-dim); text-decoration: none; font-size: 13.5px;
+  padding: 5px 12px; border-radius: 8px;
+}
+#v-klassik nav a.active { color: var(--c-text); background: var(--c-surface2); }
+#v-klassik .wrap { max-width: 900px; margin: 0 auto; padding: 22px 18px 60px; }
+#v-klassik .summary-strip {
+  display: flex; gap: 14px; margin-bottom: 16px;
+}
+#v-klassik .sum-card {
+  flex: 1; background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: 12px; padding: 12px 16px;
+}
+#v-klassik .sum-card .lbl { font-size: 11.5px; color: var(--c-dim); text-transform: uppercase; letter-spacing: .08em; }
+#v-klassik .sum-card .v { font-size: 22px; font-weight: 700; }
+#v-klassik .sum-card .v.credit { color: var(--c-green); }
+#v-klassik .sum-card .v.debit { color: var(--c-red); }
+#v-klassik .one-row-filter { display: flex; gap: 10px; margin-bottom: 14px; }
+#v-klassik .one-row-filter select, #v-klassik .one-row-filter input {
+  font: inherit; font-size: 13.5px; padding: 7px 10px;
+  background: var(--c-surface); color: var(--c-text);
+  border: 1px solid var(--c-border); border-radius: 8px;
+}
+#v-klassik .one-row-filter input { flex: 1; }
+#v-klassik .more-filter-btn {
+  font: inherit; font-size: 13px; color: var(--c-dim); cursor: pointer;
+  background: none; border: 1px dashed var(--c-border); border-radius: 8px; padding: 7px 12px;
+}
+#v-klassik table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+#v-klassik th {
+  text-align: left; color: var(--c-dim); font-weight: 600; font-size: 12px;
+  padding: 8px 10px; border-bottom: 1px solid var(--c-border);
+}
+#v-klassik td { padding: 9px 10px; border-bottom: 1px solid var(--c-border); }
+#v-klassik th.r, #v-klassik td.r { text-align: right; }
+#v-klassik td.debit { color: var(--c-red); }
+#v-klassik td.credit { color: var(--c-green); }
+#v-klassik .cat-pill {
+  font-size: 12px; background: var(--c-surface2); border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  #v-fluss .flow-figures { gap: 22px; }
+  #v-fluss .figure .val { font-size: 22px; }
+  #v-konto .sheet-summary { flex-wrap: wrap; gap: 18px; }
+  #v-konto .desc-col { display: none; }
+  #v-klassik .summary-strip { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body data-variant="fluss">
+
+<div id="proto-bar" role="toolbar" aria-label="Prototyp-Varianten">
+  <span class="proto-label">CAT-26 Prototyp — Variante:</span>
+  <button data-v="fluss" aria-pressed="true">1 · Fluss</button>
+  <button data-v="konto" aria-pressed="false">2 · Kontoblatt</button>
+  <button data-v="klassik" aria-pressed="false">3 · Klassik+</button>
+  <span style="margin-left:auto; color:#666;">Entscheidungen: DECISIONS.md</span>
+</div>
+
+<!-- ════════════ VARIANTE 1 · FLUSS ════════════ -->
+<section id="v-fluss" class="variant" aria-label="Variante Fluss">
+  <div class="wrap">
+    <header class="masthead">
+      <div class="brand"><span class="scissors">&#9986;</span>Cut the Fat</div>
+      <div class="masthead-tools">
+        <button class="quiet-link">Import</button>
+        <button class="quiet-link">Einstellungen</button>
+      </div>
+    </header>
+
+    <nav class="month-nav" aria-label="Monat wählen">
+      <button id="f-prev" aria-label="Voriger Monat">&#8249;</button>
+      <h1 id="f-month-title">März 2026</h1>
+      <button id="f-next" aria-label="Nächster Monat">&#8250;</button>
+    </nav>
+
+    <div class="flow-figures">
+      <div class="figure in">
+        <span class="eyebrow">Eingang</span>
+        <span class="val num" id="f-in">—</span>
+      </div>
+      <div class="figure out">
+        <span class="eyebrow">Ausgaben</span>
+        <span class="val num" id="f-out">—</span>
+      </div>
+      <div class="figure rest">
+        <span class="eyebrow">Übrig</span>
+        <span class="val num" id="f-rest">—</span>
+      </div>
+    </div>
+
+    <div class="cutbar" aria-label="Geldfluss: Eingang zerteilt in Ausgaben-Kategorien und Rest">
+      <div class="cutbar-track" id="f-cutbar"></div>
+      <div class="cutmark" id="f-cutmark"><span>&#9986;</span></div>
+      <div class="legend" id="f-legend"></div>
+    </div>
+
+    <div class="feed-tools">
+      <h2>Bewegungen</h2>
+      <label class="toggle">
+        <input type="checkbox" id="f-natalie-toggle">
+        Natalie ausblenden
+      </label>
+    </div>
+
+    <details class="filters">
+      <summary>Filter</summary>
+      <div class="filter-body">
+        <select id="f-type">
+          <option value="all">Ausgaben &amp; Einnahmen</option>
+          <option value="debit">Nur Ausgaben</option>
+          <option value="credit">Nur Einnahmen</option>
+        </select>
+        <input type="search" id="f-search" placeholder="Händler suchen…">
+      </div>
+    </details>
+
+    <div id="f-feed"></div>
+  </div>
+
+  <button class="assistant-fab" id="f-fab" aria-label="Assistent öffnen" aria-expanded="false">&#10024;</button>
+  <div class="assistant-panel hidden" id="f-assistant" role="dialog" aria-label="Assistent">
+    <div class="a-title">Assistent</div>
+    <div class="a-hint">Fragen zur Analyse — die Übersicht selbst braucht keinen Chat.</div>
+    <div class="a-quick">
+      <button>Wo kann ich sparen?</button>
+      <button>Vergleich zum Vormonat</button>
+      <button>Bericht erstellen</button>
+    </div>
+    <input type="text" placeholder="Frage eingeben… (Attrappe)">
+  </div>
+</section>
+
+<!-- ════════════ VARIANTE 2 · KONTOBLATT ════════════ -->
+<section id="v-konto" class="variant" aria-label="Variante Kontoblatt">
+  <div class="wrap">
+    <div class="sheet-head">
+      <h1><span class="scissors">&#9986;</span> Cut the Fat — Kontoblatt</h1>
+      <span class="period">März 2026</span>
+    </div>
+    <div class="sheet-summary" id="k-summary"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Tag</th>
+          <th>Händler</th>
+          <th class="desc-col">Kategorie</th>
+          <th class="r">Betrag</th>
+          <th class="r">Saldo</th>
+        </tr>
+      </thead>
+      <tbody id="k-body"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ════════════ VARIANTE 3 · KLASSIK+ ════════════ -->
+<section id="v-klassik" class="variant" aria-label="Variante Klassik Plus">
+  <header class="topbar">
+    <a class="logo" href="#">&#9986; Cut the Fat</a>
+    <nav>
+      <a href="#" class="active">Übersicht</a>
+      <a href="#">Assistent</a>
+    </nav>
+    <span style="width:90px;"></span>
+  </header>
+  <div class="wrap">
+    <div class="summary-strip" id="c-summary"></div>
+    <div class="one-row-filter">
+      <select id="c-month">
+        <option>März 2026</option>
+        <option>Februar 2026</option>
+      </select>
+      <input type="search" id="c-search" placeholder="Händler oder Kategorie suchen…">
+      <button class="more-filter-btn">Mehr Filter</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Händler</th>
+          <th class="r">Betrag</th>
+          <th>Kategorie</th>
+        </tr>
+      </thead>
+      <tbody id="c-body"></tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* ── Mock-Daten: ein realistischer Monat, Kategorien = kanonische Liste ── */
+const TXNS = [
+  { d: '2026-03-01', m: 'ACME Software GmbH', cat: 'Einnahmen', amt: 4200.00, type: 'credit' },
+  { d: '2026-03-01', m: 'Miete Antonina', cat: 'Einnahmen', amt: 890.00, type: 'credit' },
+  { d: '2026-03-02', m: 'Landeshauptstadt München', cat: 'Einnahmen', amt: 210.00, type: 'credit' },
+  { d: '2026-03-02', m: 'Hypovereinsbank Darlehen', cat: 'Wohnen', amt: 1480.00, type: 'debit' },
+  { d: '2026-03-02', m: 'Stadtwerke München', cat: 'Wohnen', amt: 168.00, type: 'debit' },
+  { d: '2026-03-03', m: 'REWE', cat: 'Lebensmittel', amt: 84.32, type: 'debit' },
+  { d: '2026-03-03', m: 'Telekom Deutschland', cat: 'Kommunikation', amt: 49.95, type: 'debit' },
+  { d: '2026-03-04', m: 'MVV Abo', cat: 'Mobilität', amt: 59.00, type: 'debit' },
+  { d: '2026-03-05', m: 'dm Drogeriemarkt', cat: 'Drogerie', amt: 31.75, type: 'debit' },
+  { d: '2026-03-05', m: 'Inga Überweisung', cat: 'Business Natalie', amt: 250.00, type: 'debit' },
+  { d: '2026-03-06', m: 'EDEKA', cat: 'Lebensmittel', amt: 56.10, type: 'debit' },
+  { d: '2026-03-07', m: 'L\'Osteria', cat: 'Essen & Trinken', amt: 47.80, type: 'debit' },
+  { d: '2026-03-08', m: 'Netflix', cat: 'Abonnements', amt: 13.99, type: 'debit' },
+  { d: '2026-03-09', m: 'Aral Tankstelle', cat: 'Mobilität', amt: 72.40, type: 'debit' },
+  { d: '2026-03-10', m: 'PayPal', cat: 'PayPal', amt: 38.49, type: 'debit' },
+  { d: '2026-03-11', m: 'Apotheke am Markt', cat: 'Gesundheit', amt: 22.60, type: 'debit' },
+  { d: '2026-03-12', m: 'Kita-Beitrag', cat: 'Kinder', amt: 180.00, type: 'debit' },
+  { d: '2026-03-13', m: 'REWE', cat: 'Lebensmittel', amt: 63.21, type: 'debit' },
+  { d: '2026-03-14', m: 'Spotify', cat: 'Abonnements', amt: 10.99, type: 'debit' },
+  { d: '2026-03-15', m: 'Allianz Versicherung', cat: 'Versicherungen', amt: 89.30, type: 'debit' },
+  { d: '2026-03-16', m: 'Amazon', cat: 'Shopping', amt: 54.90, type: 'debit' },
+  { d: '2026-03-17', m: 'Lieferando', cat: 'Essen & Trinken', amt: 28.50, type: 'debit' },
+  { d: '2026-03-18', m: 'Pichugin Überweisung', cat: 'Business Natalie', amt: 120.00, type: 'debit' },
+  { d: '2026-03-19', m: 'ALDI SÜD', cat: 'Lebensmittel', amt: 41.87, type: 'debit' },
+  { d: '2026-03-21', m: 'DB Fernverkehr', cat: 'Mobilität', amt: 49.90, type: 'debit' },
+  { d: '2026-03-22', m: 'PayPal', cat: 'PayPal', amt: 19.99, type: 'debit' },
+  { d: '2026-03-24', m: 'REWE', cat: 'Lebensmittel', amt: 77.65, type: 'debit' },
+  { d: '2026-03-26', m: 'Stadtbibliothek München', cat: 'Bildung', amt: 12.00, type: 'debit' },
+  { d: '2026-03-28', m: 'Kino Mathäser', cat: 'Freizeit', amt: 34.00, type: 'debit' },
+  { d: '2026-03-29', m: 'EDEKA', cat: 'Lebensmittel', amt: 49.44, type: 'debit' },
+];
+
+const NATALIE_CATS = ['Business Natalie', 'Kinder Natalie', 'Wohnen Natalie', 'Einnahmen Natalie'];
+const SEG_COLORS = ['#8c2f2f', '#b34a3a', '#c96a45', '#d98a55', '#c9a06a', '#a9a27e', '#8d9787', '#6f8790'];
+
+const fmt = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const dayFmt = d => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' });
+const esc = s => { const el = document.createElement('div'); el.textContent = s; return el.innerHTML; };
+
+/* ── Varianten-Umschalter ── */
+document.querySelectorAll('#proto-bar button[data-v]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.body.dataset.variant = btn.dataset.v;
+    document.querySelectorAll('#proto-bar button[data-v]').forEach(b =>
+      b.setAttribute('aria-pressed', String(b === btn)));
+    try { localStorage.setItem('cat26-variant', btn.dataset.v); } catch (e) { /* egal */ }
+  });
+});
+try {
+  const saved = localStorage.getItem('cat26-variant');
+  if (saved) document.querySelector(`#proto-bar button[data-v="${saved}"]`)?.click();
+} catch (e) { /* egal */ }
+
+/* ════════════ Variante 1 · Fluss ════════════ */
+const fState = { hideNatalie: false, type: 'all', search: '', cat: null };
+
+function fluesseData() {
+  return TXNS.filter(t => !(fState.hideNatalie && NATALIE_CATS.includes(t.cat)));
+}
+
+function renderFluss() {
+  const data = fluesseData();
+  const income = data.filter(t => t.type === 'credit').reduce((s, t) => s + t.amt, 0);
+  const out = data.filter(t => t.type === 'debit').reduce((s, t) => s + t.amt, 0);
+  const rest = income - out;
+
+  document.getElementById('f-in').textContent = fmt(income);
+  document.getElementById('f-out').textContent = fmt(out);
+  document.getElementById('f-rest').textContent = fmt(rest);
+  document.getElementById('f-rest').style.color = rest >= 0 ? 'var(--f-green)' : 'var(--f-red)';
+
+  // Schnittleiste: Eingang = 100 %, Segmente = Top-Kategorien + Sonstige + Übrig
+  const byCat = {};
+  data.filter(t => t.type === 'debit').forEach(t => { byCat[t.cat] = (byCat[t.cat] || 0) + t.amt; });
+  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 6);
+  const otherSum = sorted.slice(6).reduce((s, [, v]) => s + v, 0);
+  if (otherSum > 0) top.push(['Sonstige Kategorien', otherSum]);
+
+  const bar = document.getElementById('f-cutbar');
+  const legend = document.getElementById('f-legend');
+  bar.innerHTML = ''; legend.innerHTML = '';
+  top.forEach(([cat, sum], i) => {
+    const seg = document.createElement('div');
+    seg.className = 'cutbar-seg';
+    seg.style.width = (sum / income * 100) + '%';
+    seg.style.background = SEG_COLORS[i % SEG_COLORS.length];
+    seg.title = `${cat}: ${fmt(sum)}`;
+    bar.appendChild(seg);
+
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.setAttribute('aria-pressed', String(fState.cat === cat));
+    chip.innerHTML = `<span class="swatch" style="background:${SEG_COLORS[i % SEG_COLORS.length]}"></span>` +
+      `${esc(cat)} <span class="amt num">${fmt(sum)}</span>`;
+    chip.addEventListener('click', () => {
+      fState.cat = fState.cat === cat ? null : cat;
+      renderFluss();
+    });
+    legend.appendChild(chip);
+  });
+  if (rest > 0) {
+    const seg = document.createElement('div');
+    seg.className = 'cutbar-seg rest-seg';
+    seg.style.width = (rest / income * 100) + '%';
+    seg.title = `Übrig: ${fmt(rest)}`;
+    bar.appendChild(seg);
+    document.getElementById('f-cutmark').style.paddingRight = (rest / income * 100) + '%';
+  } else {
+    document.getElementById('f-cutmark').style.paddingRight = '0%';
+  }
+
+  // Feed: nach Tag gruppiert, neueste zuerst
+  const feed = document.getElementById('f-feed');
+  feed.innerHTML = '';
+  const visible = data.filter(t =>
+    (fState.type === 'all' || t.type === fState.type) &&
+    (!fState.cat || t.cat === fState.cat || (fState.cat === 'Sonstige Kategorien' && !top.slice(0, 6).some(([c]) => c === t.cat) && t.type === 'debit')) &&
+    (!fState.search || t.m.toLowerCase().includes(fState.search)));
+  if (!visible.length) {
+    feed.innerHTML = '<div class="empty-note">Keine Bewegungen für diese Auswahl. Filter zurücksetzen, um alles zu sehen.</div>';
+    return;
+  }
+  const byDay = {};
+  visible.forEach(t => { (byDay[t.d] = byDay[t.d] || []).push(t); });
+  Object.keys(byDay).sort().reverse().forEach(d => {
+    const group = document.createElement('div');
+    group.className = 'day-group';
+    group.innerHTML = `<div class="day-head">${dayFmt(d)}</div>`;
+    byDay[d].forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'txn';
+      row.innerHTML =
+        `<span class="merchant">${esc(t.m)}</span>` +
+        `<span class="amount num ${t.type}">${fmt(t.amt)}</span>` +
+        `<span class="cat">${esc(t.cat)}</span>`;
+      group.appendChild(row);
+    });
+    feed.appendChild(group);
+  });
+}
+
+document.getElementById('f-natalie-toggle').addEventListener('change', e => {
+  fState.hideNatalie = e.target.checked; renderFluss();
+});
+document.getElementById('f-type').addEventListener('change', e => {
+  fState.type = e.target.value; renderFluss();
+});
+document.getElementById('f-search').addEventListener('input', e => {
+  fState.search = e.target.value.trim().toLowerCase(); renderFluss();
+});
+document.getElementById('f-fab').addEventListener('click', () => {
+  const panel = document.getElementById('f-assistant');
+  const open = panel.classList.toggle('hidden');
+  document.getElementById('f-fab').setAttribute('aria-expanded', String(!open));
+});
+['f-prev', 'f-next'].forEach(id => document.getElementById(id).addEventListener('click', () => {
+  document.getElementById('f-month-title').textContent =
+    id === 'f-prev' ? 'Februar 2026' : 'März 2026';
+}));
+
+/* ════════════ Variante 2 · Kontoblatt ════════════ */
+function renderKonto() {
+  const income = TXNS.filter(t => t.type === 'credit').reduce((s, t) => s + t.amt, 0);
+  const out = TXNS.filter(t => t.type === 'debit').reduce((s, t) => s + t.amt, 0);
+  document.getElementById('k-summary').innerHTML = `
+    <div class="s-item"><span class="lbl">Eingang</span><span class="v num">${fmt(income)}</span></div>
+    <div class="s-item"><span class="lbl">Ausgang</span><span class="v num neg">${fmt(out)}</span></div>
+    <div class="s-item"><span class="lbl">Saldo</span><span class="v num pos">${fmt(income - out)}</span></div>
+    <div class="s-item"><span class="lbl">Buchungen</span><span class="v num">${TXNS.length}</span></div>`;
+
+  let saldo = 0;
+  const body = document.getElementById('k-body');
+  body.innerHTML = '';
+  [...TXNS].sort((a, b) => a.d.localeCompare(b.d)).forEach(t => {
+    saldo += t.type === 'credit' ? t.amt : -t.amt;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="mono dim">${t.d.slice(8)}.${t.d.slice(5, 7)}.</td>` +
+      `<td>${esc(t.m)}</td>` +
+      `<td class="desc-col"><span class="cat-tag">${esc(t.cat)}</span></td>` +
+      `<td class="mono r ${t.type === 'debit' ? 'neg' : ''}">${t.type === 'debit' ? '−' : ''}${fmt(t.amt)}</td>` +
+      `<td class="mono r dim">${fmt(saldo)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+/* ════════════ Variante 3 · Klassik+ ════════════ */
+function renderKlassik() {
+  const q = (document.getElementById('c-search').value || '').trim().toLowerCase();
+  const data = TXNS.filter(t => !q || t.m.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q));
+  const income = data.filter(t => t.type === 'credit').reduce((s, t) => s + t.amt, 0);
+  const out = data.filter(t => t.type === 'debit').reduce((s, t) => s + t.amt, 0);
+  document.getElementById('c-summary').innerHTML = `
+    <div class="sum-card"><div class="lbl">Einnahmen</div><div class="v credit num">${fmt(income)}</div></div>
+    <div class="sum-card"><div class="lbl">Ausgaben</div><div class="v debit num">${fmt(out)}</div></div>
+    <div class="sum-card"><div class="lbl">Übrig</div><div class="v num">${fmt(income - out)}</div></div>`;
+  const body = document.getElementById('c-body');
+  body.innerHTML = '';
+  [...data].sort((a, b) => b.d.localeCompare(a.d)).forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${t.d.slice(8)}.${t.d.slice(5, 7)}.${t.d.slice(0, 4)}</td>` +
+      `<td>${esc(t.m)}</td>` +
+      `<td class="r num ${t.type}">${t.type === 'debit' ? '−' : '+'}${fmt(t.amt)}</td>` +
+      `<td><span class="cat-pill">${esc(t.cat)}</span></td>`;
+    body.appendChild(tr);
+  });
+}
+document.getElementById('c-search').addEventListener('input', renderKlassik);
+
+renderFluss();
+renderKonto();
+renderKlassik();
+</script>
+</body>
+</html>
