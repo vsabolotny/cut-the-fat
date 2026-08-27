@@ -65,6 +65,17 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 Unterstützte Formate: **CSV**, **Excel (.xlsx/.xls)**, **PDF**. Die KI kategorisiert automatisch alle Händler. Bekannte Händler werden direkt per gespeicherter Regel zugeordnet — ohne API-Aufruf.
 
+Für zwei PDF-Formate gibt es dedizierte Parser, die statt der generischen Heuristik
+greifen und jede Buchung samt Vorzeichen exakt lesen:
+
+| Format | Erkannt an | Datei |
+|---|---|---|
+| Postbank Girokonto | „Postbank" + „Kontoauszug vom" | `pdf_postbank.py` |
+| easybank Kreditkarte (BAWAG) | „easybank Kreditkarte" + „Umsatzübersicht" | `pdf_easybank.py` |
+
+Beide lesen zusätzlich Alten und Neuen Saldo aus, sodass sich ein Import über
+`Alter Saldo + Σ Buchungen == Neuer Saldo` prüfen lässt.
+
 ---
 
 ### Dashboard anzeigen
@@ -182,6 +193,7 @@ cut-the-fat/
 │           ├── insights.py           # Claude Sonnet Empfehlungen + Cache
 │           ├── category_discovery.py # Neue Kategorien automatisch entdecken
 │           └── parser/               # csv_parser, excel_parser, pdf_parser
+│                                     # + pdf_postbank, pdf_easybank (bankspezifisch)
 └── .claude/commands/            # Claude Code Skills (/upload /dashboard /insights /learn /report)
 ```
 
@@ -194,7 +206,7 @@ cut-the-fat/
 ```
 ./ctf upload <datei>
   → SHA-256 Duplikat-Check (Datei bereits importiert?)
-  → Parser-Erkennung (CSV / Excel / PDF)
+  → Parser-Erkennung (CSV / Excel / PDF; bei PDF zuerst die bankspezifischen Parser)
   → Händler normalisieren + Dedup-Hashes berechnen
   → Bekannte Händlerregeln anwenden (kein API-Aufruf)
   → Claude Haiku: neue Kategorien entdecken (falls nötig)

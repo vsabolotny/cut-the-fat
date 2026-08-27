@@ -8,7 +8,7 @@ import hashlib
 from pathlib import Path
 
 from app.database import AsyncSessionLocal, engine, Base
-from sqlalchemy import select, func, text
+from sqlalchemy import select, text
 
 
 # ---------------------------------------------------------------------------
@@ -31,9 +31,13 @@ async def ensure_initialized() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
-        count = (await db.execute(select(func.count()).select_from(Category))).scalar_one()
-        if count == 0:
-            for name, color in zip(CATEGORIES, _DEFAULT_COLORS):
+        existing = set((await db.execute(select(Category.name))).scalars())
+        missing = [name for name in CATEGORIES if name not in existing]
+        if missing:
+            # Farben zyklisch — CATEGORIES ist länger als _DEFAULT_COLORS, ein zip()
+            # würde die hinteren Kategorien stillschweigend verschlucken.
+            for offset, name in enumerate(missing):
+                color = _DEFAULT_COLORS[(len(existing) + offset) % len(_DEFAULT_COLORS)]
                 db.add(Category(name=name, color=color))
             await db.commit()
 
