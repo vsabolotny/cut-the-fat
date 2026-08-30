@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anmelden — Cut the Fat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="login-page">
+    <form id="login-card" autocomplete="off">
+      <div class="login-logo">&#9986; Cut the Fat</div>
+
+      <!-- Wird von login.js je nach Setup-Status gesetzt. -->
+      <p id="login-lead" class="login-lead">Einen Moment&hellip;</p>
+
+      <div class="settings-field">
+        <label class="settings-label" for="login-password">Passwort</label>
+        <input id="login-password" type="password" class="settings-input"
+               autocomplete="current-password" disabled>
+      </div>
+
+      <!-- Nur im Setup-Modus sichtbar. -->
+      <div class="settings-field hidden" id="login-confirm-field">
+        <label class="settings-label" for="login-confirm">Passwort wiederholen</label>
+        <input id="login-confirm" type="password" class="settings-input"
+               autocomplete="new-password">
+      </div>
+
+      <p id="login-error" class="login-error hidden" role="alert"></p>
+
+      <button type="submit" id="login-submit" class="settings-btn-primary" disabled>
+        Anmelden
+      </button>
+
+      <p class="settings-hint">
+        Deine Daten bleiben lokal. Das Passwort wird nur als Hash in
+        <code>backend/cut_the_fat.db</code> gespeichert.
+      </p>
+    </form>
+  </div>
+
+  <!-- topbar.js liefert apiFetch (Sidecar-Port + Token); die Topbar selbst
+       hat diese Seite bewusst nicht. -->
+  <script src="topbar.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

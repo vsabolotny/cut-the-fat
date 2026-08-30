@@ -1116,3 +1116,52 @@ textarea.bug-modal-input { min-height: 60px; }
   .quick-grid { grid-template-columns: 1fr 1fr; }
   .content-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Login page (CAT-28) ── */
+#login-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+#login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-logo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--accent-hover);
+}
+
+.login-lead {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.login-error {
+  font-size: 12px;
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+#login-submit { align-self: stretch; }
+
+#logout-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+}

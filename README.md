@@ -13,6 +13,7 @@ Persönliche Finanzanalyse im Terminal. Kontoauszüge importieren → KI kategor
 - **Monatsbericht** — vollständiger Bericht als Markdown-Datei (`analytics/JJJJ-MM.md`)
 - **KI-Empfehlungen** — 5 konkrete Spartipps von Claude Sonnet, gecacht und automatisch aktualisiert
 - **Mehrere Konten** — Girokonto + Kreditkarte kombinieren (Umbuchungen filtern um Doppelzählung zu vermeiden)
+- **Login** — Web- und Desktop-Oberfläche liegen hinter einem Passwort (die CLI nicht, siehe unten)
 
 ---
 
@@ -48,8 +49,29 @@ ANTHROPIC_API_KEY=sk-ant-...
 ### 3. Starten
 
 ```bash
-./ctf --help
+./ctf --help        # CLI
+./ctf-web           # Web-Oberfläche
+./ctf-desktop       # Desktop-App
 ```
+
+### 4. Passwort setzen (nur Web/Desktop)
+
+Beim ersten Öffnen der Web- oder Desktop-Oberfläche fragt die App nach einem
+Passwort (mindestens 8 Zeichen) und legt es als Hash in der Datenbank ab.
+Danach ist keine Seite mehr ohne Anmeldung erreichbar; die Sitzung läuft nach
+12 Stunden ab.
+
+Die **CLI ist bewusst nicht** hinter dem Login: Sie läuft in deiner Shell und
+liest die SQLite-Datei ohnehin direkt.
+
+Passwort vergessen? Es gibt keinen Reset-Dialog — den einzigen Nutzerdatensatz
+löschen, dann fragt die App beim nächsten Start wieder nach einem neuen:
+
+```bash
+sqlite3 backend/cut_the_fat.db "DELETE FROM users;"
+```
+
+Alle aktiven Sitzungen sofort ungültig machen: `rm .ctf-session-secret`.
 
 ---
 

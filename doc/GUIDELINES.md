@@ -129,6 +129,28 @@ Frontend erkennt ob es in Tauri oder im Browser läuft (`window.__TAURI_INTERNAL
 
 Jeder neue Frontend-Code muss dieses Pattern respektieren.
 
+### Zwei Auth-Ebenen (nicht verwechseln)
+
+| Ebene | Wer gegen wen | Träger | Code |
+|---|---|---|---|
+| Sidecar-Token | Tauri ↔ Python-Sidecar | `X-CTF-Token`-Header, WS `?token=` | `AuthMiddleware` in `web/auth.py` |
+| Nutzer-Login | Mensch ↔ App | Cookie (Seiten) + `Authorization: Bearer` (fetch/WS) | `LoginRequiredMiddleware`, `web/session.py` |
+
+Beide gelten unabhängig; eine gültige Session ersetzt das Sidecar-Token nicht.
+
+Der Login (CAT-28, `doc/features/CAT-28-LOGIN.md`) ist Single-User: genau ein
+Datensatz in `users`, Passwort beim ersten Start gesetzt, Hash via
+`hashlib.scrypt`, Token HMAC-signiert mit dem Schlüssel aus
+`.ctf-session-secret`. Bewusst ohne `passlib`/`python-jose` — native
+Extensions sind die häufigste Bruchstelle beim PyInstaller-Sidecar-Build.
+
+Zwei Fallen für neuen Code:
+- **Seitenaufrufe brauchen das Cookie, nicht den Header.** Eine
+  Dokument-Navigation kann keinen `Authorization`-Header setzen.
+- **In Tauri gatet der Server die Seiten nicht.** Dort liefert der WebView die
+  gebündelten Dateien aus (`frontendDist`), der Sidecar sieht diese Aufrufe
+  nie — das Gate ist dann `guardTauriPages()` in `topbar.js`.
+
 ### DB-Pfad
 `config.py` leitet den DB-Pfad von `__file__` ab → immer `backend/cut_the_fat.db`,
 unabhängig vom Arbeitsverzeichnis. Nicht ändern.
