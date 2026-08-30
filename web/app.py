@@ -32,7 +32,12 @@ from pydantic import BaseModel, Field
 
 from web.ws_manager import manager
 from web.logic.processor import process_message
-from web.auth import AuthMiddleware, check_ws_token, get_auth_token
+from web.auth import (
+    AuthMiddleware,
+    assert_auth_configured,
+    check_ws_token,
+    get_auth_token,
+)
 
 app = FastAPI(title="Cut the Fat")
 
@@ -65,8 +70,15 @@ _SETTINGS_LOCK = asyncio.Lock()
 @app.on_event("startup")
 async def startup():
     from app.queries import ensure_initialized
+
+    assert_auth_configured()
     await ensure_initialized()
     UPLOAD_TMP.mkdir(parents=True, exist_ok=True)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/")
@@ -77,7 +89,10 @@ async def index():
 @app.websocket("/ws/chat")
 async def ws_chat(websocket: WebSocket):
     # Token check before accepting the upgrade.
-    if not check_ws_token(websocket.query_params.get("token", "")):
+    if not check_ws_token(
+        websocket.query_params.get("token", ""),
+        websocket.cookies.get("ctf_token", ""),
+    ):
         await websocket.close(code=1008)
         return
 
@@ -225,7 +240,11 @@ async def upload_file(file: UploadFile = File(...)):
     """Save uploaded file, then ingest via queries.ingest_file."""
     from app.queries import ingest_file
 
-    dest = UPLOAD_TMP / file.filename
+    # Basename only — a crafted filename must not escape the upload dir.
+    filename = Path(file.filename or "").name
+    if not filename:
+        return {"error": "Dateiname fehlt"}
+    dest = UPLOAD_TMP / filename
     content = await file.read()
     dest.write_bytes(content)
 

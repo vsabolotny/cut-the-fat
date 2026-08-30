@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+.env
+**/.env
+*.db
+backend/*.db
+data
+analytics
+src-tauri
+node_modules
+doc
