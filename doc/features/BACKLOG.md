@@ -293,6 +293,114 @@ Abrechnungsmonat sortiert, ordnet sie dem falschen Monat zu.
 
 ---
 
+## Aus dem AWS-Deployment (CAT-27)
+
+### Provisioning tatsächlich ausführen und URL verifizieren `💡 Idee`
+**Problem:** PR #10 liefert alle Deploy-Artefakte, aber die AWS-Ressourcen sind
+noch nicht angelegt — die App ist nicht online. Angelegt sind bislang nur die
+IAM-Rolle `ctf-ec2-role` und die SSM-Parameter unter `/ctf/prod/`.
+
+- **Priorität:** P1 — das ist der eigentliche Ticketinhalt; ohne diesen Schritt
+  ist CAT-27 nicht erledigt. Ein Befehl, danach P0-frei.
+- **Auslöser:** Die AWS-Schreibbefehle wurden in der Ship-Session vom
+  Permission-Classifier blockiert (EC2/CloudFront/Secrets), Details im
+  Session-Report.
+- **Scope:** `deploy/provision-aws.sh` ausführen, `distribution-deployed`
+  abwarten, Login-Link im Browser prüfen (Seite, Chat-WebSocket, Upload).
+  Optional vorher `ANTHROPIC_API_KEY` nach `/ctf/prod/` legen, sonst laufen die
+  KI-Features im Regel-Fallback. Out: eigene Domain.
+- **Größe:** S · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+### Bestandsdaten in die Cloud-DB übernehmen `💡 Idee`
+**Problem:** Der Container startet mit leerer SQLite-DB auf einem Volume. Die
+echten Transaktionen (inkl. gelernter `merchant_rules`) liegen lokal in
+`backend/cut_the_fat.db` — online steht man zunächst vor einer leeren App.
+
+- **Priorität:** P1, sobald die Instanz läuft — vorher gegenstandslos. Ohne
+  Daten ist der Online-Zugang nur eine Demo.
+- **Auslöser:** `docker-compose.prod.yml` mountet ein frisches Named Volume;
+  `ensure_initialized()` legt lediglich das Schema plus die 26 Kategorien an.
+- **Scope:** Einmaliger Transfer der lokalen `.db` auf das EBS-Volume (z. B.
+  über SSM + `docker cp`), oder bewusst neu aufbauen und die Auszüge über die
+  Web-UI hochladen. Danach festlegen, welche Kopie die führende ist — zwei
+  divergierende SQLite-Dateien sind der wahrscheinlichste Folgefehler.
+- **Größe:** S · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+### Backup der Cloud-SQLite-DB `💡 Idee`
+**Problem:** Die Online-DB liegt auf genau einem EBS-Volume einer einzelnen
+Instanz. Kein Snapshot, kein Export, kein Restore-Weg — Instanzverlust bedeutet
+Verlust aller Finanzdaten.
+
+- **Priorität:** P1, sobald echte Daten online liegen (siehe Eintrag oben);
+  davor P3. Personenbezogene Finanzhistorie ohne Backup ist die riskanteste
+  Einzelstelle des ganzen Setups.
+- **Auslöser:** Architekturentscheidung in `doc/CAT-27-AWS-DEPLOYMENT.md`:
+  SQLite bleibt (Projektregel), also genau eine Instanz ohne Replikation.
+- **Scope:** Täglicher `sqlite3 .backup` per Cron auf der Instanz plus Upload
+  nach S3 mit Lifecycle-Regel; Restore einmal durchspielen und dokumentieren.
+  Alternativ EBS-Snapshot-Policy (gröber, aber ein Klick).
+- **Größe:** S · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+### `/api/settings` im Cloud-Modus abschalten `💡 Idee`
+**Problem:** `POST /api/settings` (`web/app.py:413`) schreibt `ANTHROPIC_API_KEY`
+und `GITHUB_TOKEN` in die repo-lokale `.env` und mutiert `os.environ`. Im
+Container ist diese Datei ab dem nächsten Deploy weg — `deploy/refresh-env.sh`
+überschreibt sie aus SSM. Die Einstellungsseite verspricht dort also
+Persistenz, die es nicht gibt.
+
+- **Priorität:** P2 — hinter Token-Auth, also kein Fremdzugriff; trotzdem
+  irreführend und ein stiller Konfigurationsverlust. P1, falls die Seite jemals
+  ohne Cookie-Auth erreichbar wird.
+- **Auslöser:** Beim Review von PR #10 aufgefallen; die Deploy-Doku führt es
+  bewusst unter „Out of scope".
+- **Scope:** Bei `CTF_COOKIE_AUTH=1` den Schreibpfad deaktivieren und in der UI
+  auf SSM verweisen; Lesen/Maskieren darf bleiben.
+- **Größe:** S · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+### Auto-Deploy bei Push auf `main` `💡 Idee`
+**Problem:** Redeploys laufen manuell über `deploy/deploy.sh` mit gesetztem
+`CTF_INSTANCE_ID`. Wer das vergisst, betreibt online stillschweigend einen
+alten Stand.
+
+- **Priorität:** P2 — manuell funktioniert, kostet aber jedes Mal einen
+  bewussten Schritt; P1, sobald mehr als eine Person deployed.
+- **Auslöser:** DrinkWise hat dafür `deploy-backend.yml` (SSM `send-command` +
+  Polling); CAT-27 hat den Workflow bewusst weggelassen.
+- **Scope:** Workflow analog DrinkWise, getriggert auf `backend/**`, `web/**`,
+  `deploy/**`, `docker-compose.prod.yml`; IAM-User mit `ssm:SendCommand` nur auf
+  diese Instanz. Out: Test-Gate davor.
+- **Größe:** M · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+### Merken, wenn die Online-App ausfällt `💡 Idee`
+**Problem:** Es gibt keinerlei Alarmierung. Fällt der Container um oder ist die
+Instanz weg, merkt man es beim nächsten eigenen Besuch — sonst nie.
+
+- **Priorität:** P2 — Single-User-App, ein Ausfall tut niemandem weh außer dem
+  Besitzer; P1, falls die App je geteilt wird.
+- **Auslöser:** `GET /health` existiert seit PR #10 und wird von niemandem
+  abgefragt; CloudFront-Access-Logs sind bewusst aus.
+- **Scope:** CloudWatch-Alarm auf EC2-`StatusCheckFailed` plus externer
+  Uptime-Ping auf `/health` mit Mail-Benachrichtigung. Out: Sentry (hat einen
+  eigenen Backlog-Eintrag).
+- **Größe:** S · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+### README/CLAUDE.md-Drift korrigieren `💡 Idee`
+**Problem:** Zwei konkrete Abweichungen zwischen Doku und Code:
+`README.md:237` listet noch die alten Kategorien (`Verkehr`, `Einkaufen`,
+`Reisen`, `Haushalt`, `Umbuchungen`) statt der 26 kanonischen aus
+`backend/app/models/transaction.py`; `CLAUDE.md` nennt für `./ctf-web` Port
+8765, das Skript startet aber auf 8080.
+
+- **Priorität:** P3 — kosmetisch, aber die Kategorienliste ist genau die Art
+  Doku, die man beim Debuggen glaubt; wird P2, wenn jemand Neues einsteigt.
+- **Auslöser:** Beim README-Update in PR #10 gesehen, bewusst nicht
+  mitgeändert, um den Deploy-PR fokussiert zu halten.
+- **Scope:** Beide Stellen angleichen; Projektstruktur-Baum um `web/` und
+  `deploy/` ergänzen. Out: größerer README-Umbau.
+- **Größe:** S · **Quelle:** CAT-27 / PR #10 · 2026-08-30
+
+---
+
 ## Zurückgestellt
 
 ### Mobile App `💡 Idee`
