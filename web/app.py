@@ -32,11 +32,21 @@ from pydantic import BaseModel, Field
 
 from web.ws_manager import manager
 from web.logic.processor import process_message
-from web.auth import AuthMiddleware, check_ws_token, get_auth_token
+from web.auth import (
+    AuthMiddleware,
+    LoginRequiredMiddleware,
+    check_ws_token,
+    get_auth_token,
+)
+from web.handlers.auth_api import router as auth_router
+from web.session import COOKIE_NAME, verify_token
 
 app = FastAPI(title="Cut the Fat")
 
-# Auth runs before CORS so unauthorized requests never reach business logic.
+# Middleware-Reihenfolge: zuletzt hinzugefügt läuft zuerst. Gewünscht ist
+# CORS → Sidecar-Token → Nutzer-Login → App, damit das Transport-Gate greift,
+# bevor überhaupt eine Session geprüft wird.
+app.add_middleware(LoginRequiredMiddleware)
 app.add_middleware(AuthMiddleware)
 
 # CORS only matters in Tauri mode (WebView origin is tauri://localhost or
@@ -52,8 +62,10 @@ if get_auth_token():
         allow_origin_regex=r"^tauri://.*$",
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "X-CTF-Token"],
+        allow_headers=["Content-Type", "X-CTF-Token", "Authorization"],
     )
+
+app.include_router(auth_router)
 
 STATIC_DIR = Path(__file__).parent / "static"
 UPLOAD_TMP = Path(__file__).resolve().parent.parent / "data" / "uploads"
@@ -74,10 +86,24 @@ async def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/login")
+async def login_page():
+    return FileResponse(STATIC_DIR / "login.html")
+
+
 @app.websocket("/ws/chat")
 async def ws_chat(websocket: WebSocket):
-    # Token check before accepting the upgrade.
+    # Beide Gates vor dem Upgrade: Sidecar-Token und Nutzer-Session. Middleware
+    # greift bei WebSockets nicht, also wird hier explizit geprüft.
     if not check_ws_token(websocket.query_params.get("token", "")):
+        await websocket.close(code=1008)
+        return
+
+    # Query-Parameter zuerst, Cookie als Rückfall — im Browser läuft die Seite
+    # same-origin und bringt das Cookie ohnehin mit, in Tauri ist der
+    # Parameter der einzige Weg.
+    session = websocket.query_params.get("session", "") or websocket.cookies.get(COOKIE_NAME, "")
+    if verify_token(session) is None:
         await websocket.close(code=1008)
         return
 

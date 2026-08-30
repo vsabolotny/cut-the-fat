@@ -23,7 +23,7 @@ _DEFAULT_COLORS = [
 
 
 async def ensure_initialized() -> None:
-    from app.models import upload, transaction, merchant_rule, insights_cache, category  # noqa: register
+    from app.models import upload, transaction, merchant_rule, insights_cache, category, user  # noqa: register
     from app.models.category import Category
     from app.models.transaction import CATEGORIES
 
