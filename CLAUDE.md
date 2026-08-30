@@ -31,6 +31,12 @@ cd backend && .venv/bin/pip install -r requirements.txt
 node scripts/build-sidecar.mjs && node scripts/rename-sidecar.mjs  # Sidecar
 ```
 
+**Deployment (AWS, siehe [`doc/CAT-27-AWS-DEPLOYMENT.md`](doc/CAT-27-AWS-DEPLOYMENT.md)):**
+```bash
+deploy/provision-aws.sh     # einmalig: EC2 + Elastic IP + CloudFront
+deploy/deploy.sh            # Redeploy via SSM (CTF_INSTANCE_ID setzen)
+```
+
 ## Kategorien (kanonisch)
 
 `Wohnen, Lebensmittel, Essen & Trinken, Mobilität, Freizeit, Gesundheit, Drogerie, Shopping, Abonnements, Urlaub, Bildung, Kommunikation, Versicherungen, Kinder, Post & Versand, Business Natalie, Kinder Natalie, Wohnen Natalie, Einnahmen, Einnahmen Natalie, Einkommensteuer, PayPal, Bargeld, Kreditkarte, Eigenüberweisung, Sonstiges`
@@ -48,3 +54,5 @@ Neue Kategorie: `CATEGORIES` in `backend/app/models/transaction.py` — wird bei
   der pdfplumber-Default verschluckt die Leerzeichen in Händlernamen, und die aus
   CSV-Importen aufgebauten `merchant_rules` greifen dann nicht mehr
 - Vorzeichenkonvention in allen Parsern: **negativ = Ausgabe (debit)**, positiv = Eingang
+- Öffentlicher Deploy nur mit `CTF_AUTH_TOKEN` **und** `CTF_COOKIE_AUTH=1` —
+  ohne beides ist jede Route offen (die App kennt keine Benutzer)

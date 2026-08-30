@@ -231,6 +231,24 @@ Empfehlungen sind gehasht auf `SHA-256(aggregierter_ausgaben_json)`. Neuer Impor
 |---|---|---|
 | `ANTHROPIC_API_KEY` | *(leer)* | Für KI-Features erforderlich. Ohne Key: Kategorie „Sonstiges" als Fallback, regelbasierte Empfehlungen |
 | `DATABASE_URL` | `sqlite+aiosqlite:///...` | SQLAlchemy DB-URL (Standard: `backend/cut_the_fat.db`) |
+| `CTF_AUTH_TOKEN` | *(leer)* | Shared Secret für die Web-App. Leer = offen (nur localhost). Von der Desktop-App automatisch gesetzt |
+| `CTF_COOKIE_AUTH` | *(leer)* | `1` = Cloud-Modus: **alle** Pfade verlangen den Token, Login per `?token=…` setzt ein HttpOnly-Cookie |
+
+---
+
+## Deployment (AWS)
+
+Die Web-App läuft öffentlich hinter CloudFront (EC2 + Docker, ohne eigene
+Domain). Einrichtung, Runbook und Sicherheitsmodell:
+[`doc/CAT-27-AWS-DEPLOYMENT.md`](doc/CAT-27-AWS-DEPLOYMENT.md).
+
+```bash
+deploy/provision-aws.sh   # einmalig: EC2, Elastic IP, CloudFront
+deploy/deploy.sh          # Redeploy (per SSM, ohne SSH)
+```
+
+> ⚠️ Ohne `CTF_AUTH_TOKEN` + `CTF_COOKIE_AUTH=1` ist die App **völlig offen** —
+> für einen öffentlichen Deploy sind beide Pflicht.
 
 ---
 
