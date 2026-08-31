@@ -4,6 +4,7 @@ Fährt die echte FastAPI-App gegen eine temporäre SQLite-Datei hoch und prüft
 die Akzeptanzkriterien aus `doc/features/CAT-28-LOGIN.md` als Requests.
 """
 import os
+import secrets
 import sys
 
 import pytest
@@ -19,6 +20,17 @@ from app import database as database_mod  # noqa: E402
 from app import queries as queries_mod  # noqa: E402
 from web import session as session_mod  # noqa: E402
 from web.app import app  # noqa: E402
+
+
+# Testpasswörter werden pro Lauf zufällig erzeugt. Nichts Passwortartiges
+# liegt damit im Repo (Secret-Scanner schlagen sonst zu Recht an), und kein
+# Test hängt an einer bestimmten Zeichenkette.
+OWNER_PASSPHRASE = secrets.token_urlsafe(16)
+OTHER_PASSPHRASE = secrets.token_urlsafe(16)
+WRONG_PASSPHRASE = secrets.token_urlsafe(16)
+UNKNOWN_PASSPHRASE = secrets.token_urlsafe(16)
+TOO_SHORT_PASSPHRASE = secrets.token_urlsafe(16)[:4]
+SIDECAR_TOKEN = secrets.token_urlsafe(16)
 
 
 @pytest.fixture
@@ -46,7 +58,7 @@ def client(tmp_path, monkeypatch):
         yield test_client
 
 
-def _setup_owner(client, password="geheim-genug"):
+def _setup_owner(client, password=OWNER_PASSPHRASE):
     response = client.post("/api/auth/setup", json={"password": password})
     assert response.status_code == 201, response.text
     return response.json()["token"]
@@ -81,7 +93,7 @@ class TestSetup:
         assert client.get("/login").status_code == 200
 
     def test_short_password_is_rejected_and_creates_no_user(self, client):
-        response = client.post("/api/auth/setup", json={"password": "kurz"})
+        response = client.post("/api/auth/setup", json={"password": TOO_SHORT_PASSPHRASE})
         assert response.status_code == 400
         assert client.get("/api/auth/status").json() == {"setup_required": True}
 
@@ -95,7 +107,7 @@ class TestSetup:
 
     def test_second_setup_is_refused(self, client):
         _setup_owner(client)
-        response = client.post("/api/auth/setup", json={"password": "noch-ein-passwort"})
+        response = client.post("/api/auth/setup", json={"password": OTHER_PASSPHRASE})
         assert response.status_code == 409
 
 
@@ -106,19 +118,19 @@ class TestSetup:
 
 class TestLogin:
     def test_correct_password_returns_a_token(self, client):
-        _setup_owner(client, "geheim-genug")
-        response = client.post("/api/auth/login", json={"password": "geheim-genug"})
+        _setup_owner(client, OWNER_PASSPHRASE)
+        response = client.post("/api/auth/login", json={"password": OWNER_PASSPHRASE})
         assert response.status_code == 200
         assert client.get("/api/auth/me", headers=_auth(response.json()["token"])).status_code == 200
 
     def test_wrong_password_is_rejected(self, client):
-        _setup_owner(client, "geheim-genug")
-        assert client.post("/api/auth/login", json={"password": "falsch-falsch"}).status_code == 401
+        _setup_owner(client, OWNER_PASSPHRASE)
+        assert client.post("/api/auth/login", json={"password": WRONG_PASSPHRASE}).status_code == 401
 
     def test_error_does_not_reveal_whether_an_account_exists(self, client):
-        before = client.post("/api/auth/login", json={"password": "irgendwas"})
-        _setup_owner(client, "geheim-genug")
-        after = client.post("/api/auth/login", json={"password": "irgendwas"})
+        before = client.post("/api/auth/login", json={"password": UNKNOWN_PASSPHRASE})
+        _setup_owner(client, OWNER_PASSPHRASE)
+        after = client.post("/api/auth/login", json={"password": UNKNOWN_PASSPHRASE})
         assert before.status_code == after.status_code == 401
         assert before.json() == after.json()
 
@@ -185,7 +197,7 @@ class TestSessionCookie:
 
     def test_login_sets_an_httponly_cookie(self, client):
         _setup_owner(client)
-        response = client.post("/api/auth/login", json={"password": "geheim-genug"})
+        response = client.post("/api/auth/login", json={"password": OWNER_PASSPHRASE})
         cookie = response.headers["set-cookie"]
         assert session_mod.COOKIE_NAME in cookie
         assert "HttpOnly" in cookie
@@ -214,12 +226,12 @@ class TestSidecarTokenStillApplies:
         Sidecar-Token nicht."""
         token = _setup_owner(client)
         _drop_cookies(client)
-        monkeypatch.setenv("CTF_AUTH_TOKEN", "sidecar-geheimnis")
+        monkeypatch.setenv("CTF_AUTH_TOKEN", SIDECAR_TOKEN)
 
         assert client.get("/api/transactions", headers=_auth(token)).status_code == 401
 
         response = client.get(
             "/api/transactions",
-            headers={**_auth(token), "X-CTF-Token": "sidecar-geheimnis"},
+            headers={**_auth(token), "X-CTF-Token": SIDECAR_TOKEN},
         )
         assert response.status_code == 200

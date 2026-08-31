@@ -7,6 +7,7 @@ Zwei Ebenen:
 import base64
 import json
 import os
+import secrets
 import sys
 import time
 
@@ -19,6 +20,17 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 
 from web import session as session_mod  # noqa: E402
 from web.auth import requires_login  # noqa: E402
+
+
+# Pro Lauf zufällig erzeugt statt fest im Code: Secret-Scanner schlagen sonst
+# auf jedem Passwort-Literal an, und kein Test braucht eine bestimmte Eingabe.
+RIGHT_PASSPHRASE = secrets.token_urlsafe(16)
+WRONG_PASSPHRASE = secrets.token_urlsafe(16)
+ANY_PASSPHRASE = secrets.token_urlsafe(16)
+LONG_ENOUGH_PASSPHRASE = secrets.token_urlsafe(16)[:8]
+TOO_SHORT_PASSPHRASE = secrets.token_urlsafe(16)[:4]
+# Nicht-ASCII bleibt bewusst wörtlich — genau das prüft der Test.
+NON_ASCII_INPUT = "straße-müßig-ÄÖÜ"
 
 
 @pytest.fixture(autouse=True)
@@ -38,30 +50,30 @@ def isolated_secret(tmp_path, monkeypatch):
 
 class TestPasswordHashing:
     def test_hash_is_not_the_plaintext(self):
-        hashed = session_mod.hash_password("korrekt-pferd-batterie")
-        assert "korrekt-pferd-batterie" not in hashed
+        hashed = session_mod.hash_password(RIGHT_PASSPHRASE)
+        assert RIGHT_PASSPHRASE not in hashed
 
     def test_verify_accepts_the_right_password(self):
-        hashed = session_mod.hash_password("korrekt-pferd-batterie")
-        assert session_mod.verify_password("korrekt-pferd-batterie", hashed)
+        hashed = session_mod.hash_password(RIGHT_PASSPHRASE)
+        assert session_mod.verify_password(RIGHT_PASSPHRASE, hashed)
 
     def test_verify_rejects_the_wrong_password(self):
-        hashed = session_mod.hash_password("korrekt-pferd-batterie")
-        assert not session_mod.verify_password("falsch-pferd-batterie", hashed)
+        hashed = session_mod.hash_password(RIGHT_PASSPHRASE)
+        assert not session_mod.verify_password(WRONG_PASSPHRASE, hashed)
 
     def test_same_password_hashes_differently(self):
         # Unterschiedliches Salt pro Aufruf — sonst wären Rainbow-Tables möglich.
-        assert session_mod.hash_password("passwort1") != session_mod.hash_password("passwort1")
+        assert session_mod.hash_password(ANY_PASSPHRASE) != session_mod.hash_password(ANY_PASSPHRASE)
 
     def test_hash_has_the_documented_format(self):
-        scheme, n, r, p, salt, digest = session_mod.hash_password("passwort1").split("$")
+        scheme, n, r, p, salt, digest = session_mod.hash_password(ANY_PASSPHRASE).split("$")
         assert scheme == "scrypt"
         assert (int(n), int(r), int(p)) == (2 ** 14, 8, 1)
         assert salt and digest
 
     def test_umlauts_round_trip(self):
-        hashed = session_mod.hash_password("straße-müßig-ÄÖÜ")
-        assert session_mod.verify_password("straße-müßig-ÄÖÜ", hashed)
+        hashed = session_mod.hash_password(NON_ASCII_INPUT)
+        assert session_mod.verify_password(NON_ASCII_INPUT, hashed)
 
     @pytest.mark.parametrize(
         "broken",
@@ -70,7 +82,7 @@ class TestPasswordHashing:
     def test_broken_hash_returns_false_instead_of_raising(self, broken):
         # Ein beschädigter Datensatz darf niemanden einloggen und darf den
         # Login-Endpunkt auch nicht in einen 500er kippen.
-        assert not session_mod.verify_password("passwort1", broken)
+        assert not session_mod.verify_password(ANY_PASSPHRASE, broken)
 
 
 # ---------------------------------------------------------------------------
@@ -146,10 +158,10 @@ class TestSessionToken:
 
 class TestPasswordProblem:
     def test_short_password_is_rejected(self):
-        assert session_mod.password_problem("kurz") is not None
+        assert session_mod.password_problem(TOO_SHORT_PASSPHRASE) is not None
 
     def test_eight_characters_are_enough(self):
-        assert session_mod.password_problem("12345678") is None
+        assert session_mod.password_problem(LONG_ENOUGH_PASSPHRASE) is None
 
 
 # ---------------------------------------------------------------------------
