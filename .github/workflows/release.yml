@@ -126,6 +126,12 @@ jobs:
       - name: Install Tauri CLI
         run: npm install @tauri-apps/cli@latest
 
+      - name: Configure updater (fork-specific pubkey + endpoint)
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          TAURI_UPDATER_ENDPOINT: ${{ secrets.TAURI_UPDATER_ENDPOINT }}
+        run: node scripts/configure-tauri.mjs
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
